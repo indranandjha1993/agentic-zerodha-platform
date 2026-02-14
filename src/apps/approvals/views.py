@@ -16,6 +16,8 @@ from apps.approvals.models import (
     DecisionType,
 )
 from apps.approvals.serializers import ApprovalDecisionInputSerializer, ApprovalRequestSerializer
+from apps.execution.models import IntentStatus
+from apps.execution.tasks import execute_intent_task
 
 
 class ApprovalRequestViewSet(ReadOnlyModelViewSet):
@@ -76,6 +78,18 @@ class ApprovalRequestViewSet(ReadOnlyModelViewSet):
                 "updated_at",
             ]
         )
+
+        trade_intent = getattr(approval_request, "trade_intent", None)
+        if trade_intent is not None:
+            if decision == DecisionType.APPROVE:
+                trade_intent.status = IntentStatus.APPROVED
+                trade_intent.failure_reason = ""
+                trade_intent.save(update_fields=["status", "failure_reason", "updated_at"])
+                execute_intent_task.delay(trade_intent.id, True)
+            else:
+                trade_intent.status = IntentStatus.REJECTED
+                trade_intent.failure_reason = reason or "Rejected by approver."
+                trade_intent.save(update_fields=["status", "failure_reason", "updated_at"])
 
         response_data = ApprovalRequestSerializer(approval_request).data
         return Response(response_data, status=status.HTTP_200_OK)

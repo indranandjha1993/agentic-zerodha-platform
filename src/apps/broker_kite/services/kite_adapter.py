@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
+from apps.credentials.services.manager import BrokerCredentialService, get_active_broker_credential
 from apps.execution.models import TradeIntent
 
 try:
@@ -10,9 +11,15 @@ except Exception:  # pragma: no cover
 
 
 class KiteAdapter:
-    def __init__(self, api_key: str | None = None, access_token: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        access_token: str | None = None,
+        credential_service: BrokerCredentialService | None = None,
+    ) -> None:
         self.api_key = api_key
         self.access_token = access_token
+        self.credential_service = credential_service or BrokerCredentialService()
 
     def _build_client(self) -> Any:
         if KiteConnect is None:
@@ -26,6 +33,8 @@ class KiteAdapter:
         return client
 
     def place_order(self, intent: TradeIntent) -> dict[str, Any]:
+        self._hydrate_credentials_from_store(intent)
+
         if not self.api_key or not self.access_token:
             # Safe fallback for local scaffolding before credential wiring.
             return {
@@ -47,3 +56,14 @@ class KiteAdapter:
             trigger_price=float(intent.trigger_price) if intent.trigger_price is not None else None,
         )
         return {"order_id": order_id, "status": "placed"}
+
+    def _hydrate_credentials_from_store(self, intent: TradeIntent) -> None:
+        if self.api_key and self.access_token:
+            return
+
+        credential = get_active_broker_credential(user=intent.agent.owner)
+        if credential is None:
+            return
+
+        self.api_key = credential.api_key
+        self.access_token = self.credential_service.decrypt_access_token(credential)

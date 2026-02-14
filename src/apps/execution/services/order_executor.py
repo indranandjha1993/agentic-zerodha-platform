@@ -18,7 +18,10 @@ class TradeIntentExecutor:
         self.approval_orchestrator = approval_orchestrator or ApprovalOrchestrator()
         self.kite_adapter = kite_adapter or KiteAdapter()
 
-    def process(self, intent: TradeIntent) -> dict[str, str]:
+    def process(self, intent: TradeIntent, bypass_approval: bool = False) -> dict[str, str]:
+        if intent.status in {IntentStatus.PLACED, IntentStatus.REJECTED, IntentStatus.CANCELED}:
+            return {"status": intent.status, "reason": "Intent is already finalized."}
+
         risk_decision = self.risk_engine.evaluate(intent=intent, policy=intent.agent.risk_policy)
 
         if not risk_decision.approved:
@@ -27,7 +30,7 @@ class TradeIntentExecutor:
             intent.save(update_fields=["status", "failure_reason", "updated_at"])
             return {"status": intent.status, "reason": intent.failure_reason}
 
-        if self.approval_orchestrator.requires_approval(
+        if not bypass_approval and self.approval_orchestrator.requires_approval(
             agent=intent.agent,
             risk_score=risk_decision.risk_score,
         ):

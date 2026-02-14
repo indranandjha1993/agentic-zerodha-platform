@@ -55,6 +55,8 @@ docker compose up --build
 - `GET/POST /api/v1/agents/`
 - `GET /api/v1/approval-requests/`
 - `POST /api/v1/approval-requests/{id}/decide/`
+- `GET/POST /api/v1/broker-credentials/`
+- `GET/POST /api/v1/llm-credentials/`
 
 ## Project Structure
 
