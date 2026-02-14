@@ -122,8 +122,18 @@ CELERY_BEAT_SCHEDULE = {
 
 OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
 OPENROUTER_DEFAULT_MODEL = env("OPENROUTER_DEFAULT_MODEL", default="openai/gpt-4o-mini")
+OPENROUTER_HTTP_REFERER = env("OPENROUTER_HTTP_REFERER", default="")
+OPENROUTER_APP_TITLE = env("OPENROUTER_APP_TITLE", default="")
+OPENROUTER_ANALYST_MAX_STEPS = env.int("OPENROUTER_ANALYST_MAX_STEPS", default=6)
 KITE_API_BASE_URL = env("KITE_API_BASE_URL", default="https://api.kite.trade")
 ENCRYPTION_KEY = env("ENCRYPTION_KEY", default="")
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
 TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
 TELEGRAM_API_BASE_URL = env("TELEGRAM_API_BASE_URL", default="https://api.telegram.org")
+SERPER_API_KEY = env("SERPER_API_KEY", default="")
+GOOGLE_CSE_API_KEY = env("GOOGLE_CSE_API_KEY", default="")
+GOOGLE_CSE_ENGINE_ID = env("GOOGLE_CSE_ENGINE_ID", default="")
+WEB_TOOL_USER_AGENT = env(
+    "WEB_TOOL_USER_AGENT",
+    default="agentic-zerodha-platform/0.1 (+https://openrouter.ai/)",
+)

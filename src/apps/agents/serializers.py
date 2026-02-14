@@ -73,3 +73,9 @@ class AgentSerializer(serializers.ModelSerializer):
         if approvers is not None:
             instance.approvers.set(approvers)
         return cast(Agent, instance)
+
+
+class AgentAnalysisRequestSerializer(serializers.Serializer):
+    query = serializers.CharField(max_length=4000)
+    model = serializers.CharField(max_length=128, required=False, allow_blank=True)
+    max_steps = serializers.IntegerField(required=False, min_value=1, max_value=10)

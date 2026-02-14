@@ -3,6 +3,7 @@ from apps.credentials.services.manager import (
     BrokerCredentialService,
     LlmCredentialService,
     get_active_broker_credential,
+    get_active_llm_credential,
 )
 
 __all__ = [
@@ -11,4 +12,5 @@ __all__ = [
     "CredentialCryptoError",
     "LlmCredentialService",
     "get_active_broker_credential",
+    "get_active_llm_credential",
 ]

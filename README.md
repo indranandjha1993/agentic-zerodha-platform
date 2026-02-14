@@ -54,6 +54,7 @@ docker compose up --build
 
 - `GET /health/`
 - `GET/POST /api/v1/agents/`
+- `POST /api/v1/agents/{id}/analyze/`
 - `GET /api/v1/approval-requests/`
 - `GET /api/v1/approval-requests/queue/`
 - `POST /api/v1/approval-requests/{id}/decide/`
@@ -73,6 +74,23 @@ docker compose up --build
    `https://<your-domain>/api/v1/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>/`
 6. Include Telegram secret header validation using:
    `X-Telegram-Bot-Api-Secret-Token: <TELEGRAM_WEBHOOK_SECRET>`
+7. Operator commands via Telegram:
+   - `/pending [limit]`
+   - `/status <request_id>`
+   - `/approve <request_id> [reason]`
+   - `/reject <request_id> [reason]`
+
+## OpenRouter Market Analyst
+
+`POST /api/v1/agents/{id}/analyze/` runs a real OpenRouter agentic research loop with tools:
+- `google_search`: uses `SERPER_API_KEY` or Google CSE (`GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_ENGINE_ID`)
+- `open_webpage`: fetches and parses public webpages for evidence
+
+Required setup:
+- store active OpenRouter key in `/api/v1/llm-credentials/` for the agent owner
+- set optional OpenRouter headers:
+  - `OPENROUTER_HTTP_REFERER`
+  - `OPENROUTER_APP_TITLE`
 
 ## Project Structure
 

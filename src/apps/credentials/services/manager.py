@@ -109,3 +109,17 @@ def get_active_broker_credential(
     )
     credential = queryset.order_by("-updated_at").first()
     return cast(BrokerCredential | None, credential)
+
+
+def get_active_llm_credential(
+    *,
+    user: Any,
+    provider: str = "openrouter",
+) -> LlmCredential | None:
+    queryset: QuerySet[LlmCredential] = LlmCredential.objects.filter(
+        user=user,
+        provider=provider,
+        is_active=True,
+    )
+    credential = queryset.order_by("-updated_at").first()
+    return cast(LlmCredential | None, credential)

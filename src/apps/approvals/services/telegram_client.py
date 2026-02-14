@@ -55,6 +55,24 @@ class TelegramClient:
         }
         return self._post("sendMessage", payload)
 
+    def send_message(
+        self,
+        *,
+        chat_id: str,
+        text: str,
+        reply_markup: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if not self.is_configured:
+            return {"ok": False, "error": "TELEGRAM_BOT_TOKEN is not configured."}
+
+        payload: dict[str, Any] = {
+            "chat_id": chat_id,
+            "text": text,
+        }
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+        return self._post("sendMessage", payload)
+
     def answer_callback_query(
         self,
         *,
