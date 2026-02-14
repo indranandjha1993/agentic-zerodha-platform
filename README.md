@@ -43,6 +43,19 @@ uv run celery -A config worker --loglevel=info
 uv run celery -A config beat --loglevel=info
 ```
 
+## Demo Data Seeder
+
+Populate realistic cross-module demo data (agents, approvals, execution, market, audit) with:
+
+```bash
+uv run python manage.py seed_demo_data --cycles 1
+```
+
+Behavior:
+- incremental by design: each run appends a new linked dataset
+- supports multiple batches in one call via `--cycles N`
+- creates seed users with password override via `--password <value>`
+
 ## Quick Start (Docker Compose)
 
 ```bash

@@ -1,4 +1,4 @@
-.PHONY: bootstrap migrate makemigrations run worker beat test lint format docker-up docker-down
+.PHONY: bootstrap migrate makemigrations seed run worker beat test lint format docker-up docker-down
 
 bootstrap:
 	uv sync --group dev
@@ -8,6 +8,9 @@ makemigrations:
 
 migrate:
 	uv run python manage.py migrate
+
+seed:
+	uv run python manage.py seed_demo_data --cycles 1
 
 run:
 	uv run python manage.py runserver

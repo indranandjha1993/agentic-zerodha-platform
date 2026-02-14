@@ -73,11 +73,11 @@ def drop_trigram_indexes(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("agents", "0006_agent_agents_agen_status_65a1e3_idx_and_more"),
-        ("approvals", "0005_approvaldecision_approvals_a_approva_63e748_idx_and_more"),
-        ("audit", "0002_auditevent_audit_audit_level_e6924b_idx_and_more"),
-        ("execution", "0002_tradeintent_execution_t_status_3a852f_idx_and_more"),
-        ("market_data", "0002_instrument_market_data_exchang_1b1149_idx_and_more"),
+        ("agents", "0001_initial"),
+        ("approvals", "0001_initial"),
+        ("audit", "0001_initial"),
+        ("execution", "0001_initial"),
+        ("market_data", "0001_initial"),
     ]
 
     operations = [
