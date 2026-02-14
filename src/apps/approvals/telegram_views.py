@@ -2,6 +2,7 @@ import re
 from typing import Any
 
 from django.conf import settings
+from django.db.models import Q
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -15,6 +16,8 @@ from apps.approvals.models import (
 )
 from apps.approvals.services.decision_engine import (
     ApprovalDecisionConflictError,
+    ApprovalDecisionDuplicateError,
+    ApprovalDecisionPermissionError,
     ApprovalDecisionService,
 )
 from apps.approvals.services.telegram_client import TelegramClient
@@ -81,8 +84,8 @@ class TelegramWebhookView(APIView):
 
         try:
             approval_request = ApprovalRequest.objects.select_related("agent", "agent__owner").get(
+                Q(agent__owner=profile.user) | Q(agent__approvers=profile.user),
                 id=approval_id,
-                agent__owner=profile.user,
             )
         except ApprovalRequest.DoesNotExist:
             TelegramCallbackEvent.objects.create(decision=decision, **default_event_kwargs)
@@ -101,7 +104,7 @@ class TelegramWebhookView(APIView):
         )
 
         try:
-            decision_service.decide(
+            outcome = decision_service.decide(
                 approval_request=approval_request,
                 actor=profile.user,
                 decision=decision,
@@ -115,12 +118,20 @@ class TelegramWebhookView(APIView):
         except ApprovalDecisionConflictError:
             self._answer_callback(callback_id, "Approval request already decided.")
             return Response({"status": "already_decided"}, status=200)
+        except ApprovalDecisionPermissionError:
+            self._answer_callback(callback_id, "You are not allowed to decide this request.", True)
+            return Response({"status": "forbidden"}, status=200)
+        except ApprovalDecisionDuplicateError:
+            self._answer_callback(callback_id, "You already responded to this request.")
+            return Response({"status": "duplicate_vote"}, status=200)
 
-        callback_message = (
-            "Approved. Execution has been queued."
-            if decision == DecisionType.APPROVE
-            else "Rejected."
-        )
+        if decision == DecisionType.REJECT:
+            callback_message = "Rejected."
+        elif outcome.is_final:
+            callback_message = "Approved. Execution has been queued."
+        else:
+            remaining = outcome.required_approvals - outcome.approved_count
+            callback_message = f"Approval recorded. Waiting for {remaining} more approval(s)."
         self._answer_callback(callback_id, callback_message)
 
         return Response(

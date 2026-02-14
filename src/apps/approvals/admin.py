@@ -10,6 +10,7 @@ class ApprovalRequestAdmin(admin.ModelAdmin):
         "agent",
         "channel",
         "status",
+        "required_approvals",
         "requested_by",
         "decided_by",
         "expires_at",

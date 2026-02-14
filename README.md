@@ -5,6 +5,7 @@ Full-stack backend foundation for an agentic Zerodha trading platform with:
 - OpenRouter key management
 - Agent configuration and scheduling
 - Human-in-loop approvals (dashboard/admin/telegram-ready)
+- Multi-approver RBAC (owner + assigned approvers with quorum)
 - Risk checks and audited execution pipeline
 
 ## Stack

@@ -26,11 +26,13 @@ class ApprovalOrchestrator:
         channel: str = "dashboard",
     ) -> ApprovalRequest:
         ttl_minutes = int(intent.agent.config.get("approval_ttl_minutes", 10))
+        required_approvals = max(1, int(intent.agent.required_approvals))
 
         approval_request = ApprovalRequest.objects.create(
             agent=intent.agent,
             requested_by=intent.agent.owner,
             channel=channel,
+            required_approvals=required_approvals,
             intent_payload={
                 "symbol": intent.symbol,
                 "side": intent.side,

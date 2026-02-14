@@ -35,6 +35,11 @@ class Agent(TimeStampedModel):
         null=True,
         blank=True,
     )
+    approvers = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="agent_approvals",
+        blank=True,
+    )
 
     name = models.CharField(max_length=128)
     slug = models.SlugField(max_length=128)
@@ -51,6 +56,7 @@ class Agent(TimeStampedModel):
         choices=ApprovalMode.choices,
         default=ApprovalMode.RISK_BASED,
     )
+    required_approvals = models.PositiveSmallIntegerField(default=1)
 
     schedule_cron = models.CharField(max_length=100, blank=True)
     config = models.JSONField(default=dict, blank=True)

@@ -2,6 +2,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 from apps.core.models import TimeStampedModel
 
@@ -51,6 +52,7 @@ class ApprovalRequest(TimeStampedModel):
         choices=ApprovalStatus.choices,
         default=ApprovalStatus.PENDING,
     )
+    required_approvals = models.PositiveSmallIntegerField(default=1)
 
     intent_payload = models.JSONField(default=dict, blank=True)
     risk_snapshot = models.JSONField(default=dict, blank=True)
@@ -89,6 +91,15 @@ class ApprovalDecision(TimeStampedModel):
     decision = models.CharField(max_length=16, choices=DecisionType.choices)
     reason = models.TextField(blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("approval_request", "actor"),
+                condition=Q(actor__isnull=False),
+                name="unique_decision_per_actor_per_request",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"ApprovalDecision<{self.approval_request_id}>:{self.decision}"

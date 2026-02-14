@@ -1,6 +1,6 @@
 from typing import Any
 
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -14,6 +14,8 @@ from apps.approvals.models import (
 from apps.approvals.serializers import ApprovalDecisionInputSerializer, ApprovalRequestSerializer
 from apps.approvals.services.decision_engine import (
     ApprovalDecisionConflictError,
+    ApprovalDecisionDuplicateError,
+    ApprovalDecisionPermissionError,
     ApprovalDecisionService,
 )
 
@@ -23,10 +25,12 @@ class ApprovalRequestViewSet(ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self) -> QuerySet[ApprovalRequest]:
+        user = self.request.user
         return (
-            ApprovalRequest.objects.filter(agent__owner=self.request.user)
+            ApprovalRequest.objects.filter(Q(agent__owner=user) | Q(agent__approvers=user))
             .select_related("agent", "requested_by", "decided_by")
             .prefetch_related("decisions")
+            .distinct()
             .order_by("-created_at")
         )
 
@@ -49,7 +53,7 @@ class ApprovalRequestViewSet(ReadOnlyModelViewSet):
 
         decision_service = ApprovalDecisionService()
         try:
-            decision_service.decide(
+            outcome = decision_service.decide(
                 approval_request=approval_request,
                 actor=request.user,
                 decision=decision,
@@ -61,6 +65,21 @@ class ApprovalRequestViewSet(ReadOnlyModelViewSet):
                 {"detail": "Approval request is no longer pending."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        except ApprovalDecisionPermissionError:
+            return Response(
+                {"detail": "You are not allowed to decide this request."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except ApprovalDecisionDuplicateError:
+            return Response(
+                {"detail": "You have already decided this request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         response_data = ApprovalRequestSerializer(approval_request).data
+        response_data["decision_outcome"] = {
+            "is_final": outcome.is_final,
+            "approved_count": outcome.approved_count,
+            "required_approvals": outcome.required_approvals,
+        }
         return Response(response_data, status=status.HTTP_200_OK)
