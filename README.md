@@ -57,6 +57,7 @@ docker compose up --build
 - `POST /api/v1/agents/{id}/analyze/`
 - `GET /api/v1/agents/{id}/analysis-runs/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/`
+- `GET /api/v1/agents/{id}/analysis-runs/{run_id}/status/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/stream/`
 - `GET /api/v1/approval-requests/`
@@ -95,6 +96,11 @@ Required setup:
 - set optional OpenRouter headers:
   - `OPENROUTER_HTTP_REFERER`
   - `OPENROUTER_APP_TITLE`
+
+Async behavior:
+- default mode is async queue (`AGENT_ANALYSIS_ASYNC_DEFAULT=True`)
+- pass `"async_mode": false` in request body to execute synchronously
+- poll compact run status using `/analysis-runs/{run_id}/status/`
 
 ## Project Structure
 

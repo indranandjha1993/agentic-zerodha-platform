@@ -144,3 +144,25 @@ class AgentAnalysisRunService:
                 payload=payload,
             )
         return cast(AgentAnalysisEvent, event)
+
+    @staticmethod
+    def status_payload(run: AgentAnalysisRun) -> dict[str, Any]:
+        latest_event = run.events.order_by("-sequence").first()
+        is_final = run.status in {
+            AnalysisRunStatus.COMPLETED,
+            AnalysisRunStatus.FAILED,
+            AnalysisRunStatus.CANCELED,
+        }
+        return {
+            "run_id": run.id,
+            "status": run.status,
+            "is_final": is_final,
+            "started_at": run.started_at,
+            "completed_at": run.completed_at,
+            "steps_executed": run.steps_executed,
+            "max_steps": run.max_steps,
+            "latest_sequence": latest_event.sequence if latest_event is not None else None,
+            "latest_event_type": latest_event.event_type if latest_event is not None else "",
+            "latest_event_at": latest_event.created_at if latest_event is not None else None,
+            "error_message": run.error_message,
+        }

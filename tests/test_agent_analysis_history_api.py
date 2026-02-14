@@ -136,3 +136,55 @@ def test_analysis_event_list_and_stream_endpoints() -> None:
             break
     body = "".join(chunks)
     assert "stream_end" in body
+
+
+@pytest.mark.django_db
+def test_analysis_run_status_endpoint_returns_compact_payload() -> None:
+    owner = User.objects.create_user(
+        username="status-owner",
+        email="status-owner@example.com",
+        password="test-pass",
+    )
+    agent = Agent.objects.create(
+        owner=owner,
+        name="Status Agent",
+        slug="status-agent",
+        instruction="Status endpoint test.",
+        status=AgentStatus.ACTIVE,
+        execution_mode=ExecutionMode.PAPER,
+        approval_mode=ApprovalMode.ALWAYS,
+        is_auto_enabled=True,
+    )
+    run = AgentAnalysisRun.objects.create(
+        agent=agent,
+        requested_by=owner,
+        status=AnalysisRunStatus.RUNNING,
+        query="Analyze SBI.",
+        model="openai/gpt-4o-mini",
+        max_steps=6,
+        steps_executed=2,
+    )
+    AgentAnalysisEvent.objects.create(
+        run=run,
+        sequence=1,
+        event_type="run_started",
+        payload={"step": 1},
+    )
+    AgentAnalysisEvent.objects.create(
+        run=run,
+        sequence=2,
+        event_type="tool_result",
+        payload={"step": 2},
+    )
+
+    client = APIClient()
+    client.force_authenticate(owner)
+
+    response = client.get(f"/api/v1/agents/{agent.id}/analysis-runs/{run.id}/status/")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run_id"] == run.id
+    assert payload["status"] == AnalysisRunStatus.RUNNING
+    assert payload["is_final"] is False
+    assert payload["latest_sequence"] == 2
+    assert payload["latest_event_type"] == "tool_result"

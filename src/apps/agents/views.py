@@ -20,6 +20,7 @@ from apps.agents.serializers import (
     AgentAnalysisRequestSerializer,
     AgentAnalysisRunDetailSerializer,
     AgentAnalysisRunSerializer,
+    AgentAnalysisRunStatusSerializer,
     AgentSerializer,
 )
 from apps.agents.services.analysis_run_service import AgentAnalysisRunService
@@ -27,6 +28,7 @@ from apps.agents.services.openrouter_market_analyst import (
     MissingLlmCredentialError,
     OpenRouterAgentError,
 )
+from apps.agents.tasks import execute_agent_analysis_run_task
 from apps.audit.models import AuditEvent, AuditLevel
 
 
@@ -72,6 +74,9 @@ class AgentViewSet(ModelViewSet):
         max_steps = int(
             serializer.validated_data.get("max_steps", settings.OPENROUTER_ANALYST_MAX_STEPS)
         )
+        async_mode = bool(
+            serializer.validated_data.get("async_mode", settings.AGENT_ANALYSIS_ASYNC_DEFAULT)
+        )
 
         run_service = AgentAnalysisRunService()
         run = run_service.create_run(
@@ -81,6 +86,13 @@ class AgentViewSet(ModelViewSet):
             model=selected_model,
             max_steps=max_steps,
         )
+        if async_mode:
+            execute_agent_analysis_run_task.delay(run.id)
+            payload = run_service.status_payload(run)
+            payload["message"] = "Analysis run queued."
+            serializer = AgentAnalysisRunStatusSerializer(payload)
+            return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
+
         try:
             result = run_service.execute(run)
         except MissingLlmCredentialError as exc:
@@ -158,6 +170,22 @@ class AgentViewSet(ModelViewSet):
             return Response({"detail": "Analysis run not found."}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = AgentAnalysisRunDetailSerializer(run)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"], url_path=r"analysis-runs/(?P<run_id>[^/.]+)/status")
+    def get_analysis_run_status(
+        self,
+        request: Request,
+        run_id: str,
+        pk: str | None = None,
+    ) -> Response:
+        agent = self.get_object()
+        run = self._get_run(agent=agent, run_id=run_id)
+        if run is None:
+            return Response({"detail": "Analysis run not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = AgentAnalysisRunService.status_payload(run)
+        serializer = AgentAnalysisRunStatusSerializer(payload)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get"], url_path=r"analysis-runs/(?P<run_id>[^/.]+)/events")

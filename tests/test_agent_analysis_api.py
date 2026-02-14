@@ -62,7 +62,7 @@ def test_agent_analyze_endpoint_returns_analysis_payload() -> None:
         }
         response = client.post(
             f"/api/v1/agents/{agent.id}/analyze/",
-            {"query": "Analyze Infosys outlook for next quarter."},
+            {"query": "Analyze Infosys outlook for next quarter.", "async_mode": False},
             format="json",
         )
 
@@ -100,10 +100,56 @@ def test_agent_analyze_endpoint_requires_openrouter_credential() -> None:
     client.force_authenticate(owner)
     response = client.post(
         f"/api/v1/agents/{agent.id}/analyze/",
-        {"query": "Analyze TCS fundamentals."},
+        {"query": "Analyze TCS fundamentals.", "async_mode": False},
         format="json",
     )
 
     assert response.status_code == 400
     assert "No active OpenRouter credential" in response.json()["detail"]
     assert "run_id" in response.json()
+
+
+@pytest.mark.django_db
+@override_settings(ENCRYPTION_KEY="unit-test-encryption-key")
+def test_agent_analyze_endpoint_queues_async_run_by_default() -> None:
+    owner = User.objects.create_user(
+        username="analysis-async-owner",
+        email="analysis-async-owner@example.com",
+        password="test-pass",
+    )
+    agent = Agent.objects.create(
+        owner=owner,
+        name="Async Agent",
+        slug="async-agent",
+        instruction="Run asynchronously by default.",
+        status=AgentStatus.ACTIVE,
+        execution_mode=ExecutionMode.PAPER,
+        approval_mode=ApprovalMode.ALWAYS,
+        is_auto_enabled=True,
+    )
+    llm_service = LlmCredentialService()
+    llm_service.create_for_user(
+        user=owner,
+        payload={
+            "provider": "openrouter",
+            "api_key": "test-openrouter-key",
+            "default_model": "openai/gpt-4o-mini",
+            "is_active": True,
+        },
+    )
+
+    client = APIClient()
+    client.force_authenticate(owner)
+    with patch("apps.agents.views.execute_agent_analysis_run_task.delay") as mocked_delay:
+        response = client.post(
+            f"/api/v1/agents/{agent.id}/analyze/",
+            {"query": "Analyze IT sector rotation."},
+            format="json",
+        )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == AnalysisRunStatus.PENDING
+    assert payload["is_final"] is False
+    run = AgentAnalysisRun.objects.get(id=payload["run_id"])
+    mocked_delay.assert_called_once_with(run.id)

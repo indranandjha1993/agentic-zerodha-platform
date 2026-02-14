@@ -79,6 +79,7 @@ class AgentAnalysisRequestSerializer(serializers.Serializer):
     query = serializers.CharField(max_length=4000)
     model = serializers.CharField(max_length=128, required=False, allow_blank=True)
     max_steps = serializers.IntegerField(required=False, min_value=1, max_value=10)
+    async_mode = serializers.BooleanField(required=False)
 
 
 class AgentAnalysisEventSerializer(serializers.ModelSerializer):
@@ -128,3 +129,17 @@ class AgentAnalysisRunDetailSerializer(AgentAnalysisRunSerializer):
 
     class Meta(AgentAnalysisRunSerializer.Meta):
         fields = AgentAnalysisRunSerializer.Meta.fields + ["events"]
+
+
+class AgentAnalysisRunStatusSerializer(serializers.Serializer):
+    run_id = serializers.IntegerField()
+    status = serializers.CharField()
+    is_final = serializers.BooleanField()
+    started_at = serializers.DateTimeField(allow_null=True)
+    completed_at = serializers.DateTimeField(allow_null=True)
+    steps_executed = serializers.IntegerField()
+    max_steps = serializers.IntegerField()
+    latest_sequence = serializers.IntegerField(allow_null=True)
+    latest_event_type = serializers.CharField(allow_blank=True)
+    latest_event_at = serializers.DateTimeField(allow_null=True)
+    error_message = serializers.CharField(allow_blank=True)
