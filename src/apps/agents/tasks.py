@@ -45,7 +45,7 @@ def execute_agent_analysis_run_task(self: Any, run_id: int) -> dict[str, Any]:
             entity_type="agent_analysis_run",
             entity_id=str(run.id),
             payload={"error": str(exc)},
-            message="OpenRouter credential missing for async analysis run.",
+            message="OpenRouter API key missing for async analysis run.",
         )
         return {"status": "failed", "run_id": run.id, "error": str(exc)}
     except OpenRouterAgentError as exc:

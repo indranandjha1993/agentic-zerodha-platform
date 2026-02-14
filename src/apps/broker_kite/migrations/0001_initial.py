@@ -10,7 +10,6 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('credentials', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -27,7 +26,6 @@ class Migration(migrations.Migration):
                 ('session_expires_at', models.DateTimeField(blank=True, null=True)),
                 ('is_active', models.BooleanField(default=True)),
                 ('metadata', models.JSONField(blank=True, default=dict)),
-                ('credential', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='sessions', to='credentials.brokercredential')),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='kite_sessions', to=settings.AUTH_USER_MODEL)),
             ],
             options={

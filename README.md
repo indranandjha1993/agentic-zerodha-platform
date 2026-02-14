@@ -2,7 +2,7 @@
 
 Full-stack backend foundation for an agentic Zerodha trading platform with:
 - Zerodha (Kite Connect) integration boundaries
-- OpenRouter key management
+- Environment-based API key configuration
 - Agent configuration and scheduling
 - Human-in-loop approvals (dashboard/admin/telegram-ready)
 - Multi-approver RBAC (owner + assigned approvers with quorum)
@@ -69,8 +69,6 @@ docker compose up --build
 - `GET /api/v1/approval-requests/`
 - `GET /api/v1/approval-requests/queue/`
 - `POST /api/v1/approval-requests/{id}/decide/`
-- `GET/POST /api/v1/broker-credentials/`
-- `GET/POST /api/v1/llm-credentials/`
 - `POST /api/v1/telegram/webhook/{TELEGRAM_WEBHOOK_SECRET}/`
 
 ## Telegram Approval Setup
@@ -98,10 +96,13 @@ docker compose up --build
 - `open_webpage`: fetches and parses public webpages for evidence
 
 Required setup:
-- store active OpenRouter key in `/api/v1/llm-credentials/` for the agent owner
+- set `OPENROUTER_API_KEY` in `.env`
 - set optional OpenRouter headers:
   - `OPENROUTER_HTTP_REFERER`
   - `OPENROUTER_APP_TITLE`
+
+Kite setup:
+- set `KITE_API_KEY` and `KITE_ACCESS_TOKEN` in `.env`
 
 Async behavior:
 - default mode is async queue (`AGENT_ANALYSIS_ASYNC_DEFAULT=True`)
@@ -142,7 +143,6 @@ src/
     settings/
   apps/
     accounts/
-    credentials/
     broker_kite/
     agents/
     approvals/
@@ -154,6 +154,6 @@ src/
 
 ## Security Notes
 
-- API keys/secrets are stored in encrypted fields placeholders; integrate KMS before production.
+- API keys/secrets are loaded from environment variables; use a secrets manager in production.
 - Keep live trading behind approval and risk gates.
 - Enable strict RBAC for approvals and operational actions.

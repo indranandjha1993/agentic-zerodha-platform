@@ -5,15 +5,15 @@ from cryptography.fernet import Fernet, InvalidToken
 from django.conf import settings
 
 
-class CredentialCryptoError(RuntimeError):
-    """Raised when credential encryption/decryption fails."""
+class SecretCryptoError(RuntimeError):
+    """Raised when secret encryption/decryption fails."""
 
 
-class CredentialCrypto:
+class SecretCrypto:
     def __init__(self, raw_key: str | None = None) -> None:
         source_key = raw_key or settings.ENCRYPTION_KEY
         if not source_key:
-            raise CredentialCryptoError("ENCRYPTION_KEY is required for credential encryption.")
+            raise SecretCryptoError("ENCRYPTION_KEY is required for secret encryption.")
 
         self._fernet = Fernet(self._normalize_key(source_key))
 
@@ -36,6 +36,6 @@ class CredentialCrypto:
         try:
             decrypted = self._fernet.decrypt(cipher_text.encode("utf-8"))
         except InvalidToken as exc:  # pragma: no cover
-            raise CredentialCryptoError("Unable to decrypt stored credential value.") from exc
+            raise SecretCryptoError("Unable to decrypt stored secret value.") from exc
 
         return decrypted.decode("utf-8")

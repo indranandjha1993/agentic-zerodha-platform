@@ -13,10 +13,6 @@ from apps.agents.services.web_research_tools import (
     OpenWebpageTool,
     ResearchToolError,
 )
-from apps.credentials.services.manager import (
-    LlmCredentialService,
-    get_active_llm_credential,
-)
 
 
 class OpenRouterAgentError(RuntimeError):
@@ -24,7 +20,7 @@ class OpenRouterAgentError(RuntimeError):
 
 
 class MissingLlmCredentialError(OpenRouterAgentError):
-    """Raised when user has no active OpenRouter credential."""
+    """Raised when OPENROUTER_API_KEY is missing."""
 
 
 class OpenRouterAgentCanceledError(OpenRouterAgentError):
@@ -35,11 +31,9 @@ class OpenRouterMarketAnalyst:
     def __init__(
         self,
         *,
-        llm_credential_service: LlmCredentialService | None = None,
         search_tool: GoogleSearchTool | None = None,
         webpage_tool: OpenWebpageTool | None = None,
     ) -> None:
-        self.llm_credential_service = llm_credential_service or LlmCredentialService()
         self.search_tool = search_tool or GoogleSearchTool()
         self.webpage_tool = webpage_tool or OpenWebpageTool()
 
@@ -53,22 +47,15 @@ class OpenRouterMarketAnalyst:
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
         should_continue: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
-        llm_credential = get_active_llm_credential(user=agent.owner)
-        if llm_credential is None:
-            raise MissingLlmCredentialError(
-                "No active OpenRouter credential configured for the agent owner."
-            )
-
-        api_key = self.llm_credential_service.decrypt_api_key(llm_credential)
+        api_key = str(getattr(settings, "OPENROUTER_API_KEY", "")).strip()
         if api_key == "":
             raise MissingLlmCredentialError(
-                "OpenRouter API key is empty for the active credential."
+                "OPENROUTER_API_KEY is not configured."
             )
 
         selected_model = (
             model
             or str(agent.config.get("openrouter_model", ""))
-            or llm_credential.default_model
             or settings.OPENROUTER_DEFAULT_MODEL
         )
         steps = max(1, min(max_steps or settings.OPENROUTER_ANALYST_MAX_STEPS, 10))

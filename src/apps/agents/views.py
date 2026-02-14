@@ -284,7 +284,7 @@ class AgentViewSet(ModelViewSet):
                 entity_type="agent_analysis_run",
                 entity_id=str(run.id),
                 payload={"error": str(exc)},
-                message="OpenRouter credential missing for analysis run.",
+                message="OpenRouter API key missing for analysis run.",
             )
             return Response(
                 {"detail": str(exc), "run_id": run.id},

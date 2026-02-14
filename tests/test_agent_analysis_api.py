@@ -13,13 +13,12 @@ from apps.agents.models import (
     ApprovalMode,
     ExecutionMode,
 )
-from apps.credentials.services.manager import LlmCredentialService
 
 User = get_user_model()
 
 
 @pytest.mark.django_db
-@override_settings(ENCRYPTION_KEY="unit-test-encryption-key")
+@override_settings(OPENROUTER_API_KEY="test-openrouter-key")
 def test_agent_analyze_endpoint_returns_analysis_payload() -> None:
     owner = User.objects.create_user(
         username="analysis-owner",
@@ -36,17 +35,6 @@ def test_agent_analyze_endpoint_returns_analysis_payload() -> None:
         approval_mode=ApprovalMode.ALWAYS,
         is_auto_enabled=True,
     )
-    llm_service = LlmCredentialService()
-    llm_service.create_for_user(
-        user=owner,
-        payload={
-            "provider": "openrouter",
-            "api_key": "test-openrouter-key",
-            "default_model": "openai/gpt-4o-mini",
-            "is_active": True,
-        },
-    )
-
     client = APIClient()
     client.force_authenticate(owner)
     with patch(
@@ -78,7 +66,7 @@ def test_agent_analyze_endpoint_returns_analysis_payload() -> None:
 
 
 @pytest.mark.django_db
-@override_settings(ENCRYPTION_KEY="unit-test-encryption-key")
+@override_settings(OPENROUTER_API_KEY="")
 def test_agent_analyze_endpoint_requires_openrouter_credential() -> None:
     owner = User.objects.create_user(
         username="analysis-missing-cred",
@@ -105,12 +93,12 @@ def test_agent_analyze_endpoint_requires_openrouter_credential() -> None:
     )
 
     assert response.status_code == 400
-    assert "No active OpenRouter credential" in response.json()["detail"]
+    assert "OPENROUTER_API_KEY is not configured" in response.json()["detail"]
     assert "run_id" in response.json()
 
 
 @pytest.mark.django_db
-@override_settings(ENCRYPTION_KEY="unit-test-encryption-key")
+@override_settings(OPENROUTER_API_KEY="test-openrouter-key")
 def test_agent_analyze_endpoint_queues_async_run_by_default() -> None:
     owner = User.objects.create_user(
         username="analysis-async-owner",
@@ -127,17 +115,6 @@ def test_agent_analyze_endpoint_queues_async_run_by_default() -> None:
         approval_mode=ApprovalMode.ALWAYS,
         is_auto_enabled=True,
     )
-    llm_service = LlmCredentialService()
-    llm_service.create_for_user(
-        user=owner,
-        payload={
-            "provider": "openrouter",
-            "api_key": "test-openrouter-key",
-            "default_model": "openai/gpt-4o-mini",
-            "is_active": True,
-        },
-    )
-
     client = APIClient()
     client.force_authenticate(owner)
     with patch("apps.agents.views.execute_agent_analysis_run_task.delay") as mocked_delay:

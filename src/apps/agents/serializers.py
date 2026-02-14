@@ -12,7 +12,7 @@ from apps.agents.models import (
     AnalysisNotificationEventType,
 )
 from apps.agents.services.analysis_notifications import AnalysisWebhookEndpointService
-from apps.credentials.services.crypto import CredentialCryptoError
+from apps.core.services.crypto import SecretCryptoError
 
 
 class AgentSerializer(serializers.ModelSerializer):
@@ -207,7 +207,7 @@ class AgentAnalysisWebhookEndpointSerializer(serializers.ModelSerializer):
         service = AnalysisWebhookEndpointService()
         try:
             endpoint = service.create_for_user(user=request.user, payload=validated_data)
-        except CredentialCryptoError as exc:
+        except SecretCryptoError as exc:
             raise serializers.ValidationError({"detail": str(exc)}) from exc
         return cast(AgentAnalysisWebhookEndpoint, endpoint)
 
@@ -224,7 +224,7 @@ class AgentAnalysisWebhookEndpointSerializer(serializers.ModelSerializer):
         service = AnalysisWebhookEndpointService()
         try:
             endpoint = service.update(instance, payload=validated_data)
-        except CredentialCryptoError as exc:
+        except SecretCryptoError as exc:
             raise serializers.ValidationError({"detail": str(exc)}) from exc
         return cast(AgentAnalysisWebhookEndpoint, endpoint)
 

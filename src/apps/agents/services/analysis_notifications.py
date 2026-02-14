@@ -16,17 +16,17 @@ from apps.agents.models import (
     AnalysisRunStatus,
     default_analysis_notification_event_types,
 )
-from apps.credentials.services.crypto import CredentialCrypto
+from apps.core.services.crypto import SecretCrypto
 
 
 class AnalysisWebhookEndpointService:
-    def __init__(self, crypto: CredentialCrypto | None = None) -> None:
+    def __init__(self, crypto: SecretCrypto | None = None) -> None:
         self._crypto = crypto
 
     @property
-    def crypto(self) -> CredentialCrypto:
+    def crypto(self) -> SecretCrypto:
         if self._crypto is None:
-            self._crypto = CredentialCrypto()
+            self._crypto = SecretCrypto()
         return self._crypto
 
     def create_for_user(

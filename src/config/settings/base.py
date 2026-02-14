@@ -20,7 +20,6 @@ INSTALLED_APPS = [
     "rest_framework",
     "apps.core",
     "apps.accounts",
-    "apps.credentials",
     "apps.broker_kite",
     "apps.agents",
     "apps.approvals",
@@ -121,6 +120,7 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
+OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="")
 OPENROUTER_DEFAULT_MODEL = env("OPENROUTER_DEFAULT_MODEL", default="openai/gpt-4o-mini")
 OPENROUTER_HTTP_REFERER = env("OPENROUTER_HTTP_REFERER", default="")
 OPENROUTER_APP_TITLE = env("OPENROUTER_APP_TITLE", default="")
@@ -144,6 +144,8 @@ ANALYSIS_WEBHOOK_RETRY_MAX_SECONDS = env.int(
     default=900,
 )
 KITE_API_BASE_URL = env("KITE_API_BASE_URL", default="https://api.kite.trade")
+KITE_API_KEY = env("KITE_API_KEY", default="")
+KITE_ACCESS_TOKEN = env("KITE_ACCESS_TOKEN", default="")
 ENCRYPTION_KEY = env("ENCRYPTION_KEY", default="")
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
 TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")

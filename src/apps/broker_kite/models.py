@@ -10,12 +10,6 @@ class KiteSession(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="kite_sessions",
     )
-    credential = models.ForeignKey(
-        "credentials.BrokerCredential",
-        on_delete=models.CASCADE,
-        related_name="sessions",
-    )
-
     kite_user_id = models.CharField(max_length=64)
     public_token = models.CharField(max_length=255, blank=True)
     access_token_last4 = models.CharField(max_length=4, blank=True)
