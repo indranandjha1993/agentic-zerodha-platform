@@ -42,7 +42,7 @@ def test_approval_decision_approve_marks_intent_and_dispatches_execution() -> No
         request_payload={"source": "unit_test"},
     )
 
-    with patch("apps.approvals.views.execute_intent_task.delay") as mocked_delay:
+    with patch("apps.approvals.services.decision_engine.execute_intent_task.delay") as mocked_delay:
         response = client.post(
             f"/api/v1/approval-requests/{approval_request.id}/decide/",
             {"decision": "approve", "channel": "dashboard", "reason": "Looks good."},
@@ -89,7 +89,7 @@ def test_approval_decision_reject_marks_intent_rejected() -> None:
         request_payload={"source": "unit_test"},
     )
 
-    with patch("apps.approvals.views.execute_intent_task.delay") as mocked_delay:
+    with patch("apps.approvals.services.decision_engine.execute_intent_task.delay") as mocked_delay:
         response = client.post(
             f"/api/v1/approval-requests/{approval_request.id}/decide/",
             {"decision": "reject", "channel": "dashboard", "reason": "Risk too high."},

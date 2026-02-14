@@ -92,3 +92,23 @@ class ApprovalDecision(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"ApprovalDecision<{self.approval_request_id}>:{self.decision}"
+
+
+class TelegramCallbackEvent(TimeStampedModel):
+    callback_query_id = models.CharField(max_length=128, unique=True)
+    approval_request = models.ForeignKey(
+        ApprovalRequest,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="telegram_callback_events",
+    )
+    telegram_user_id = models.CharField(max_length=64, blank=True)
+    decision = models.CharField(max_length=16, choices=DecisionType.choices, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("approval_request", "created_at"))]
+
+    def __str__(self) -> str:
+        return f"TelegramCallbackEvent<{self.callback_query_id}>"

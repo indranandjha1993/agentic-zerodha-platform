@@ -57,6 +57,17 @@ docker compose up --build
 - `POST /api/v1/approval-requests/{id}/decide/`
 - `GET/POST /api/v1/broker-credentials/`
 - `GET/POST /api/v1/llm-credentials/`
+- `POST /api/v1/telegram/webhook/{TELEGRAM_WEBHOOK_SECRET}/`
+
+## Telegram Approval Setup
+
+1. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` in `.env`.
+2. Link each user profile with a `telegram_chat_id` (Django admin).
+3. Set agent config `approval_channels` to include `"telegram"`.
+4. Configure Telegram webhook to:
+   `https://<your-domain>/api/v1/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>/`
+5. Include Telegram secret header validation using:
+   `X-Telegram-Bot-Api-Secret-Token: <TELEGRAM_WEBHOOK_SECRET>`
 
 ## Project Structure
 

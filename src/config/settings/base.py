@@ -118,3 +118,6 @@ OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL", default="https://openrouter.ai/
 OPENROUTER_DEFAULT_MODEL = env("OPENROUTER_DEFAULT_MODEL", default="openai/gpt-4o-mini")
 KITE_API_BASE_URL = env("KITE_API_BASE_URL", default="https://api.kite.trade")
 ENCRYPTION_KEY = env("ENCRYPTION_KEY", default="")
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
+TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
+TELEGRAM_API_BASE_URL = env("TELEGRAM_API_BASE_URL", default="https://api.telegram.org")

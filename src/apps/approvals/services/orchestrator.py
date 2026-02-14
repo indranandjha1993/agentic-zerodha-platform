@@ -4,7 +4,7 @@ from typing import cast
 from django.utils import timezone
 
 from apps.agents.models import Agent, ApprovalMode
-from apps.approvals.models import ApprovalRequest
+from apps.approvals.models import ApprovalChannel, ApprovalRequest
 from apps.execution.models import TradeIntent
 
 
@@ -42,4 +42,19 @@ class ApprovalOrchestrator:
             risk_snapshot={"risk_score": risk_score},
             expires_at=timezone.now() + timedelta(minutes=ttl_minutes),
         )
+        channels = self._configured_channels(intent.agent, fallback=channel)
+        if ApprovalChannel.TELEGRAM in channels:
+            from apps.approvals.tasks import notify_approval_request_task
+
+            notify_approval_request_task.delay(approval_request.id)
+
         return cast(ApprovalRequest, approval_request)
+
+    @staticmethod
+    def _configured_channels(agent: Agent, fallback: str) -> set[str]:
+        configured = agent.config.get("approval_channels", [])
+        if isinstance(configured, list):
+            normalized = {str(item).lower() for item in configured}
+            if normalized:
+                return normalized
+        return {fallback}
