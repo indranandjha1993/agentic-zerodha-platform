@@ -5,7 +5,9 @@ from rest_framework.test import APIClient
 from apps.agents.models import (
     Agent,
     AgentAnalysisEvent,
+    AgentAnalysisNotificationDelivery,
     AgentAnalysisRun,
+    AgentAnalysisWebhookEndpoint,
     AgentStatus,
     AnalysisRunStatus,
     ApprovalMode,
@@ -358,3 +360,75 @@ def test_user_analysis_event_stream_only_emits_visible_final_events() -> None:
     assert "analysis_run_finalized" in body
     assert f"\"id\": {visible_run.id}" in body
     assert "stream-hidden-agent" not in body
+
+
+@pytest.mark.django_db
+def test_analysis_notification_delivery_list_endpoints() -> None:
+    owner = User.objects.create_user(
+        username="delivery-owner",
+        email="delivery-owner@example.com",
+        password="test-pass",
+    )
+    agent = Agent.objects.create(
+        owner=owner,
+        name="Delivery Agent",
+        slug="delivery-agent",
+        instruction="Delivery list endpoint test.",
+        status=AgentStatus.ACTIVE,
+        execution_mode=ExecutionMode.PAPER,
+        approval_mode=ApprovalMode.ALWAYS,
+        is_auto_enabled=True,
+    )
+    run = AgentAnalysisRun.objects.create(
+        agent=agent,
+        requested_by=owner,
+        status=AnalysisRunStatus.COMPLETED,
+        query="Analyze BAJFINANCE",
+        model="openai/gpt-4o-mini",
+        max_steps=4,
+        result_text="Done",
+    )
+    endpoint = AgentAnalysisWebhookEndpoint.objects.create(
+        owner=owner,
+        name="delivery-endpoint",
+        callback_url="https://example.com/hook",
+        event_types=["analysis_run.completed"],
+        headers={},
+        is_active=True,
+    )
+    delivery = AgentAnalysisNotificationDelivery.objects.create(
+        endpoint=endpoint,
+        run=run,
+        event_type="analysis_run.completed",
+        success=True,
+        status_code=200,
+        attempt_count=1,
+        max_attempts=3,
+        request_payload={"event_type": "analysis_run.completed"},
+        response_body="ok",
+    )
+
+    client = APIClient()
+    client.force_authenticate(owner)
+
+    run_response = client.get(
+        f"/api/v1/agents/{agent.id}/analysis-runs/{run.id}/notification-deliveries/"
+    )
+    assert run_response.status_code == 200
+    run_payload = run_response.json()
+    assert run_payload["count"] == 1
+    assert run_payload["results"][0]["id"] == delivery.id
+
+    endpoint_response = client.get(
+        f"/api/v1/analysis-webhook-endpoints/{endpoint.id}/deliveries/?run_id={run.id}"
+    )
+    assert endpoint_response.status_code == 200
+    endpoint_payload = endpoint_response.json()
+    assert endpoint_payload["count"] == 1
+    assert endpoint_payload["results"][0]["run"] == run.id
+
+    detail_response = client.get(
+        f"/api/v1/analysis-webhook-endpoints/{endpoint.id}/deliveries/{delivery.id}/"
+    )
+    assert detail_response.status_code == 200
+    assert detail_response.json()["id"] == delivery.id

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any, cast
 
 from rest_framework import serializers
@@ -5,6 +6,7 @@ from rest_framework import serializers
 from apps.agents.models import (
     Agent,
     AgentAnalysisEvent,
+    AgentAnalysisNotificationDelivery,
     AgentAnalysisRun,
     AgentAnalysisWebhookEndpoint,
     AnalysisNotificationEventType,
@@ -214,9 +216,44 @@ class AgentAnalysisWebhookEndpointSerializer(serializers.ModelSerializer):
         instance: AgentAnalysisWebhookEndpoint,
         validated_data: dict[str, Any],
     ) -> AgentAnalysisWebhookEndpoint:
+        request = self.context.get("request")
+        raw_request_data = getattr(request, "data", {})
+        if isinstance(raw_request_data, Mapping) and "signing_secret" in raw_request_data:
+            raw_secret = raw_request_data.get("signing_secret")
+            validated_data["signing_secret"] = "" if raw_secret is None else str(raw_secret)
         service = AnalysisWebhookEndpointService()
         try:
             endpoint = service.update(instance, payload=validated_data)
         except CredentialCryptoError as exc:
             raise serializers.ValidationError({"detail": str(exc)}) from exc
         return cast(AgentAnalysisWebhookEndpoint, endpoint)
+
+
+class AgentAnalysisNotificationDeliverySerializer(serializers.ModelSerializer):
+    endpoint_name = serializers.CharField(source="endpoint.name", read_only=True)
+    endpoint_callback_url = serializers.CharField(source="endpoint.callback_url", read_only=True)
+    run_status = serializers.CharField(source="run.status", read_only=True)
+
+    class Meta:
+        model = AgentAnalysisNotificationDelivery
+        fields = [
+            "id",
+            "endpoint",
+            "endpoint_name",
+            "endpoint_callback_url",
+            "run",
+            "run_status",
+            "event_type",
+            "success",
+            "status_code",
+            "attempt_count",
+            "max_attempts",
+            "last_attempt_at",
+            "next_retry_at",
+            "delivered_at",
+            "request_payload",
+            "response_body",
+            "error_message",
+            "created_at",
+            "updated_at",
+        ]

@@ -1,7 +1,7 @@
 import json
 import time
 from collections.abc import Iterator
-from typing import cast
+from typing import Any, cast
 
 from django.conf import settings
 from django.db.models import Q, QuerySet
@@ -19,12 +19,14 @@ from rest_framework.viewsets import ModelViewSet
 from apps.agents.models import (
     Agent,
     AgentAnalysisEvent,
+    AgentAnalysisNotificationDelivery,
     AgentAnalysisRun,
     AgentAnalysisWebhookEndpoint,
     AnalysisRunStatus,
 )
 from apps.agents.serializers import (
     AgentAnalysisEventSerializer,
+    AgentAnalysisNotificationDeliverySerializer,
     AgentAnalysisRequestSerializer,
     AgentAnalysisRunDetailSerializer,
     AgentAnalysisRunSerializer,
@@ -41,6 +43,23 @@ from apps.agents.tasks import execute_agent_analysis_run_task
 from apps.audit.models import AuditEvent, AuditLevel
 
 
+def _paginate_queryset(
+    *,
+    request: Request,
+    queryset: QuerySet[Any],
+) -> tuple[list[Any], int, int, int]:
+    page_param = request.query_params.get("page", "1")
+    page_size_param = request.query_params.get("page_size", "20")
+    page = int(page_param) if page_param.isdigit() else 1
+    page_size = int(page_size_param) if page_size_param.isdigit() else 20
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+    offset = (page - 1) * page_size
+    total = queryset.count()
+    rows = list(queryset[offset : offset + page_size])
+    return rows, total, page, page_size
+
+
 class AgentAnalysisWebhookEndpointViewSet(ModelViewSet):
     serializer_class = AgentAnalysisWebhookEndpointSerializer
     permission_classes = [IsAuthenticated]
@@ -49,6 +68,65 @@ class AgentAnalysisWebhookEndpointViewSet(ModelViewSet):
         return AgentAnalysisWebhookEndpoint.objects.filter(owner=self.request.user).order_by(
             "-updated_at"
         )
+
+    @action(detail=True, methods=["get"], url_path="deliveries")
+    def list_deliveries(
+        self,
+        request: Request,
+        pk: str | None = None,
+    ) -> Response:
+        endpoint = self.get_object()
+        deliveries = (
+            AgentAnalysisNotificationDelivery.objects.filter(endpoint=endpoint)
+            .select_related("endpoint", "run")
+            .order_by("-created_at")
+        )
+
+        run_id_param = request.query_params.get("run_id", "")
+        success_param = request.query_params.get("success", "").strip().lower()
+        event_type_param = request.query_params.get("event_type", "").strip()
+
+        if run_id_param.isdigit():
+            deliveries = deliveries.filter(run_id=int(run_id_param))
+        if success_param in {"true", "false"}:
+            deliveries = deliveries.filter(success=(success_param == "true"))
+        if event_type_param != "":
+            deliveries = deliveries.filter(event_type=event_type_param)
+
+        rows, total, page, page_size = _paginate_queryset(request=request, queryset=deliveries)
+        serializer = AgentAnalysisNotificationDeliverySerializer(rows, many=True)
+        return Response(
+            {
+                "count": total,
+                "page": page,
+                "page_size": page_size,
+                "results": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["get"], url_path=r"deliveries/(?P<delivery_id>[^/.]+)")
+    def get_delivery(
+        self,
+        request: Request,
+        delivery_id: str,
+        pk: str | None = None,
+    ) -> Response:
+        endpoint = self.get_object()
+        if not delivery_id.isdigit():
+            return Response({"detail": "Delivery not found."}, status=status.HTTP_404_NOT_FOUND)
+        delivery = (
+            AgentAnalysisNotificationDelivery.objects.filter(
+                endpoint=endpoint,
+                id=int(delivery_id),
+            )
+            .select_related("endpoint", "run")
+            .first()
+        )
+        if delivery is None:
+            return Response({"detail": "Delivery not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = AgentAnalysisNotificationDeliverySerializer(delivery)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class AgentViewSet(ModelViewSet):
@@ -290,16 +368,7 @@ class AgentViewSet(ModelViewSet):
             order_by = "-created_at"
         runs_queryset = runs_queryset.order_by(order_by)
 
-        page_param = request.query_params.get("page", "1")
-        page_size_param = request.query_params.get("page_size", "20")
-        page = int(page_param) if page_param.isdigit() else 1
-        page_size = int(page_size_param) if page_size_param.isdigit() else 20
-        page = max(1, page)
-        page_size = max(1, min(page_size, 100))
-        offset = (page - 1) * page_size
-
-        total = runs_queryset.count()
-        runs = list(runs_queryset[offset : offset + page_size])
+        runs, total, page, page_size = _paginate_queryset(request=request, queryset=runs_queryset)
         serializer = AgentAnalysisRunSerializer(runs, many=True)
 
         return Response(
@@ -416,6 +485,50 @@ class AgentViewSet(ModelViewSet):
 
         serializer = AgentAnalysisEventSerializer(events, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path=r"analysis-runs/(?P<run_id>[^/.]+)/notification-deliveries",
+    )
+    def list_analysis_notification_deliveries(
+        self,
+        request: Request,
+        run_id: str,
+        pk: str | None = None,
+    ) -> Response:
+        agent = self.get_object()
+        run = self._get_run(agent=agent, run_id=run_id)
+        if run is None:
+            return Response({"detail": "Analysis run not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        deliveries = (
+            AgentAnalysisNotificationDelivery.objects.filter(run=run)
+            .select_related("endpoint", "run")
+            .order_by("-created_at")
+        )
+        endpoint_id_param = request.query_params.get("endpoint_id", "")
+        success_param = request.query_params.get("success", "").strip().lower()
+        event_type_param = request.query_params.get("event_type", "").strip()
+
+        if endpoint_id_param.isdigit():
+            deliveries = deliveries.filter(endpoint_id=int(endpoint_id_param))
+        if success_param in {"true", "false"}:
+            deliveries = deliveries.filter(success=(success_param == "true"))
+        if event_type_param != "":
+            deliveries = deliveries.filter(event_type=event_type_param)
+
+        rows, total, page, page_size = _paginate_queryset(request=request, queryset=deliveries)
+        serializer = AgentAnalysisNotificationDeliverySerializer(rows, many=True)
+        return Response(
+            {
+                "count": total,
+                "page": page,
+                "page_size": page_size,
+                "results": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(
         detail=True,

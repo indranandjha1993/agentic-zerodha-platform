@@ -58,6 +58,17 @@ class AgentAnalysisWebhookEndpointAdmin(admin.ModelAdmin):
 
 @admin.register(AgentAnalysisNotificationDelivery)
 class AgentAnalysisNotificationDeliveryAdmin(admin.ModelAdmin):
-    list_display = ("id", "endpoint", "run", "event_type", "success", "status_code", "created_at")
+    list_display = (
+        "id",
+        "endpoint",
+        "run",
+        "event_type",
+        "success",
+        "attempt_count",
+        "max_attempts",
+        "status_code",
+        "next_retry_at",
+        "created_at",
+    )
     list_filter = ("event_type", "success")
     search_fields = ("run__id", "endpoint__name", "error_message")

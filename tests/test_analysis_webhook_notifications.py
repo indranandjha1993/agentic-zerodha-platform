@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from datetime import timedelta
 from unittest.mock import Mock, patch
 
 import pytest
@@ -24,6 +25,7 @@ from apps.agents.services.analysis_notifications import (
     AnalysisRunNotificationDispatchService,
     AnalysisWebhookEndpointService,
 )
+from apps.agents.tasks import dispatch_analysis_run_notifications_task
 
 User = get_user_model()
 
@@ -164,3 +166,150 @@ def test_analysis_notification_dispatch_is_signed_and_idempotent() -> None:
     assert second["skipped"] == 1
     assert mocked_post_again.call_count == 0
     assert AgentAnalysisNotificationDelivery.objects.filter(run=run).count() == 1
+
+
+@pytest.mark.django_db
+@override_settings(
+    ENCRYPTION_KEY="unit-test-encryption-key",
+    ANALYSIS_WEBHOOK_MAX_ATTEMPTS=3,
+    ANALYSIS_WEBHOOK_RETRY_BASE_SECONDS=60,
+    ANALYSIS_WEBHOOK_RETRY_MAX_SECONDS=600,
+)
+def test_analysis_notification_dispatch_retries_with_backoff() -> None:
+    owner = User.objects.create_user(
+        username="retry-owner",
+        email="retry-owner@example.com",
+        password="test-pass",
+    )
+    agent = Agent.objects.create(
+        owner=owner,
+        name="Retry Agent",
+        slug="retry-agent",
+        instruction="Retry failed webhook deliveries.",
+        status=AgentStatus.ACTIVE,
+        execution_mode=ExecutionMode.PAPER,
+        approval_mode=ApprovalMode.ALWAYS,
+        is_auto_enabled=True,
+    )
+    run = AgentAnalysisRun.objects.create(
+        agent=agent,
+        requested_by=owner,
+        status=AnalysisRunStatus.COMPLETED,
+        query="Analyze SBIN",
+        model="openai/gpt-4o-mini",
+        max_steps=4,
+        completed_at=timezone.now(),
+    )
+
+    endpoint_service = AnalysisWebhookEndpointService()
+    endpoint = endpoint_service.create_for_user(
+        user=owner,
+        payload={
+            "name": "retry-webhook",
+            "callback_url": "https://example.com/retry/webhook",
+            "signing_secret": "",
+            "event_types": [AnalysisNotificationEventType.RUN_COMPLETED],
+            "headers": {},
+            "is_active": True,
+        },
+    )
+    service = AnalysisRunNotificationDispatchService(endpoint_service=endpoint_service)
+
+    failed_response = Mock()
+    failed_response.status_code = 503
+    failed_response.text = "service unavailable"
+    with patch(
+        "apps.agents.services.analysis_notifications.requests.post",
+        return_value=failed_response,
+    ) as mocked_failed_post:
+        first = service.dispatch_for_run(run)
+
+    assert mocked_failed_post.call_count == 1
+    assert first["failed"] == 1
+    assert first["retry_scheduled_in_seconds"] == 60
+
+    delivery = AgentAnalysisNotificationDelivery.objects.get(endpoint=endpoint, run=run)
+    assert delivery.success is False
+    assert delivery.attempt_count == 1
+    assert delivery.next_retry_at is not None
+
+    with patch("apps.agents.services.analysis_notifications.requests.post") as mocked_not_due:
+        second = service.dispatch_for_run(run)
+
+    assert mocked_not_due.call_count == 0
+    assert second["attempted"] == 1
+    assert second["failed"] == 0
+    assert second["retry_scheduled_in_seconds"] is not None
+
+    delivery.next_retry_at = timezone.now() - timedelta(seconds=1)
+    delivery.save(update_fields=["next_retry_at", "updated_at"])
+
+    success_response = Mock()
+    success_response.status_code = 200
+    success_response.text = "ok"
+    with patch(
+        "apps.agents.services.analysis_notifications.requests.post",
+        return_value=success_response,
+    ) as mocked_success_post:
+        third = service.dispatch_for_run(run)
+
+    assert mocked_success_post.call_count == 1
+    assert third["delivered"] == 1
+    assert third["failed"] == 0
+    assert third["retry_scheduled_in_seconds"] is None
+
+    delivery.refresh_from_db()
+    assert delivery.success is True
+    assert delivery.attempt_count == 2
+    assert delivery.next_retry_at is None
+    assert delivery.delivered_at is not None
+
+
+@pytest.mark.django_db
+@override_settings(ENCRYPTION_KEY="unit-test-encryption-key")
+def test_dispatch_task_schedules_follow_up_retry() -> None:
+    owner = User.objects.create_user(
+        username="retry-task-owner",
+        email="retry-task-owner@example.com",
+        password="test-pass",
+    )
+    agent = Agent.objects.create(
+        owner=owner,
+        name="Retry Task Agent",
+        slug="retry-task-agent",
+        instruction="Retry task scheduling.",
+        status=AgentStatus.ACTIVE,
+        execution_mode=ExecutionMode.PAPER,
+        approval_mode=ApprovalMode.ALWAYS,
+        is_auto_enabled=True,
+    )
+    run = AgentAnalysisRun.objects.create(
+        agent=agent,
+        requested_by=owner,
+        status=AnalysisRunStatus.COMPLETED,
+        query="Analyze ULTRACEMCO",
+        model="openai/gpt-4o-mini",
+        max_steps=4,
+        completed_at=timezone.now(),
+    )
+
+    with patch(
+        "apps.agents.tasks.AnalysisRunNotificationDispatchService.dispatch_for_run",
+        return_value={
+            "status": "ok",
+            "event_type": "analysis_run.completed",
+            "attempted": 1,
+            "delivered": 0,
+            "failed": 1,
+            "skipped": 0,
+            "retry_scheduled_in_seconds": 45,
+        },
+    ) as mocked_dispatch:
+        with patch(
+            "apps.agents.tasks.dispatch_analysis_run_notifications_task.apply_async"
+        ) as mocked_apply_async:
+            payload = dispatch_analysis_run_notifications_task(run.id)
+
+    assert mocked_dispatch.call_count == 1
+    assert payload["retry_scheduled_in_seconds"] == 45
+    mocked_apply_async.assert_called_once_with(args=[run.id], countdown=45)

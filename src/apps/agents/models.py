@@ -211,6 +211,11 @@ class AgentAnalysisNotificationDelivery(TimeStampedModel):
     event_type = models.CharField(max_length=64, choices=AnalysisNotificationEventType.choices)
     success = models.BooleanField(default=False)
     status_code = models.PositiveIntegerField(null=True, blank=True)
+    attempt_count = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=3)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    next_retry_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
     request_payload = models.JSONField(default=dict, blank=True)
     response_body = models.TextField(blank=True)
     error_message = models.TextField(blank=True)
@@ -226,6 +231,7 @@ class AgentAnalysisNotificationDelivery(TimeStampedModel):
             models.Index(fields=("run", "created_at")),
             models.Index(fields=("endpoint", "created_at")),
             models.Index(fields=("event_type", "created_at")),
+            models.Index(fields=("success", "next_retry_at")),
         ]
 
     def __str__(self) -> str:

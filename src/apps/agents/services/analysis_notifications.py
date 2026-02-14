@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from datetime import timedelta
 from typing import Any, cast
 
 import requests
@@ -85,6 +86,16 @@ class AnalysisRunNotificationDispatchService:
         self.max_response_chars = int(
             max(200, getattr(settings, "ANALYSIS_WEBHOOK_RESPONSE_MAX_CHARS", 1500))
         )
+        self.max_attempts = int(max(1, getattr(settings, "ANALYSIS_WEBHOOK_MAX_ATTEMPTS", 3)))
+        self.retry_base_seconds = int(
+            max(1, getattr(settings, "ANALYSIS_WEBHOOK_RETRY_BASE_SECONDS", 30))
+        )
+        self.retry_max_seconds = int(
+            max(
+                self.retry_base_seconds,
+                getattr(settings, "ANALYSIS_WEBHOOK_RETRY_MAX_SECONDS", 900),
+            )
+        )
 
     def dispatch_for_run(self, run: AgentAnalysisRun) -> dict[str, Any]:
         event_type = self.event_type_for_status(run.status)
@@ -97,15 +108,18 @@ class AnalysisRunNotificationDispatchService:
                 "delivered": 0,
                 "failed": 0,
                 "skipped": 0,
+                "retry_scheduled_in_seconds": None,
             }
 
         payload = self._build_payload(run=run, event_type=event_type)
         endpoints = self._active_endpoints_for_owner(run)
+        now = timezone.now()
 
         attempted = 0
         delivered = 0
         failed = 0
         skipped = 0
+        next_retry_seconds: int | None = None
 
         for endpoint in endpoints:
             if not endpoint.supports_event_type(event_type):
@@ -117,23 +131,39 @@ class AnalysisRunNotificationDispatchService:
                 endpoint=endpoint,
                 run=run,
                 event_type=event_type,
-                defaults={"request_payload": payload},
+                defaults={
+                    "request_payload": payload,
+                    "max_attempts": self.max_attempts,
+                },
             )
 
             if delivery.success:
                 skipped += 1
                 continue
 
+            if delivery.attempt_count >= delivery.max_attempts:
+                skipped += 1
+                continue
+
+            if delivery.next_retry_at is not None and delivery.next_retry_at > now:
+                wait_seconds = int((delivery.next_retry_at - now).total_seconds())
+                next_retry_seconds = self._min_delay(next_retry_seconds, max(1, wait_seconds))
+                skipped += 1
+                continue
+
             delivery.request_payload = payload
-            if self._deliver(
+            success, retry_delay = self._deliver(
                 endpoint=endpoint,
                 payload=payload,
                 event_type=event_type,
                 delivery=delivery,
-            ):
+            )
+            if success:
                 delivered += 1
             else:
                 failed += 1
+                if retry_delay is not None:
+                    next_retry_seconds = self._min_delay(next_retry_seconds, retry_delay)
 
         return {
             "status": "ok",
@@ -142,6 +172,7 @@ class AnalysisRunNotificationDispatchService:
             "delivered": delivered,
             "failed": failed,
             "skipped": skipped,
+            "retry_scheduled_in_seconds": next_retry_seconds,
         }
 
     @staticmethod
@@ -172,7 +203,8 @@ class AnalysisRunNotificationDispatchService:
         payload: dict[str, Any],
         event_type: str,
         delivery: AgentAnalysisNotificationDelivery,
-    ) -> bool:
+    ) -> tuple[bool, int | None]:
+        now = timezone.now()
         body = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
         headers = {
             "Content-Type": "application/json",
@@ -189,17 +221,24 @@ class AnalysisRunNotificationDispatchService:
             delivery.status_code = None
             delivery.response_body = ""
             delivery.error_message = str(exc)
+            delivery.last_attempt_at = now
+            delivery.attempt_count += 1
+            retry_delay = self._retry_delay_seconds(delivery.attempt_count, delivery.max_attempts)
+            delivery.next_retry_at = now + timedelta(seconds=retry_delay) if retry_delay else None
             delivery.save(
                 update_fields=[
                     "request_payload",
                     "success",
                     "status_code",
+                    "attempt_count",
+                    "last_attempt_at",
+                    "next_retry_at",
                     "response_body",
                     "error_message",
                     "updated_at",
                 ]
             )
-            return False
+            return (False, retry_delay)
 
         if signing_secret != "":
             signature = hmac.new(
@@ -221,36 +260,61 @@ class AnalysisRunNotificationDispatchService:
             delivery.success = success
             delivery.status_code = response.status_code
             delivery.response_body = response_text
+            delivery.last_attempt_at = now
+            delivery.attempt_count += 1
             delivery.error_message = ""
-            if not success:
+            delivery.next_retry_at = None
+            if success:
+                delivery.delivered_at = now
+            else:
                 delivery.error_message = f"Webhook returned HTTP {response.status_code}."
+                retry_delay = self._retry_delay_seconds(
+                    delivery.attempt_count,
+                    delivery.max_attempts,
+                )
+                delivery.next_retry_at = (
+                    now + timedelta(seconds=retry_delay) if retry_delay else None
+                )
             delivery.save(
                 update_fields=[
                     "request_payload",
                     "success",
                     "status_code",
+                    "attempt_count",
+                    "last_attempt_at",
+                    "next_retry_at",
+                    "delivered_at",
                     "response_body",
                     "error_message",
                     "updated_at",
                 ]
             )
-            return success
+            if success:
+                return (True, None)
+            return (False, retry_delay)
         except requests.RequestException as exc:
             delivery.success = False
             delivery.status_code = None
             delivery.response_body = ""
             delivery.error_message = str(exc)
+            delivery.last_attempt_at = now
+            delivery.attempt_count += 1
+            retry_delay = self._retry_delay_seconds(delivery.attempt_count, delivery.max_attempts)
+            delivery.next_retry_at = now + timedelta(seconds=retry_delay) if retry_delay else None
             delivery.save(
                 update_fields=[
                     "request_payload",
                     "success",
                     "status_code",
+                    "attempt_count",
+                    "last_attempt_at",
+                    "next_retry_at",
                     "response_body",
                     "error_message",
                     "updated_at",
                 ]
             )
-            return False
+            return (False, retry_delay)
 
     @staticmethod
     def _normalized_headers(raw_headers: Any) -> dict[str, str]:
@@ -288,3 +352,16 @@ class AnalysisRunNotificationDispatchService:
                 "requested_by": run.requested_by_id,
             },
         }
+
+    def _retry_delay_seconds(self, attempt_count: int, max_attempts: int) -> int | None:
+        if attempt_count >= max_attempts:
+            return None
+        exponential_factor = max(0, attempt_count - 1)
+        raw_delay = self.retry_base_seconds * (2**exponential_factor)
+        return int(min(self.retry_max_seconds, raw_delay))
+
+    @staticmethod
+    def _min_delay(current: int | None, candidate: int) -> int:
+        if current is None:
+            return candidate
+        return min(current, candidate)

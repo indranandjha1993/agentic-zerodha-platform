@@ -86,4 +86,8 @@ def dispatch_analysis_run_notifications_task(self: Any, run_id: int) -> dict[str
         "requested_by",
     ).get(id=run_id)
     dispatch_service = AnalysisRunNotificationDispatchService()
-    return dispatch_service.dispatch_for_run(run)
+    result = dispatch_service.dispatch_for_run(run)
+    retry_in = result.get("retry_scheduled_in_seconds")
+    if isinstance(retry_in, int) and retry_in > 0:
+        dispatch_analysis_run_notifications_task.apply_async(args=[run.id], countdown=retry_in)
+    return result

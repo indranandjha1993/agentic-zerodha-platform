@@ -62,7 +62,10 @@ docker compose up --build
 - `POST /api/v1/agents/{id}/analysis-runs/{run_id}/cancel/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/stream/`
+- `GET /api/v1/agents/{id}/analysis-runs/{run_id}/notification-deliveries/`
 - `GET /api/v1/agents/analysis-events/stream/`
+- `GET /api/v1/analysis-webhook-endpoints/{id}/deliveries/`
+- `GET /api/v1/analysis-webhook-endpoints/{id}/deliveries/{delivery_id}/`
 - `GET /api/v1/approval-requests/`
 - `GET /api/v1/approval-requests/queue/`
 - `POST /api/v1/approval-requests/{id}/decide/`
@@ -113,9 +116,16 @@ Webhook notifications for final run states:
   - `analysis_run.completed`
   - `analysis_run.failed`
   - `analysis_run.canceled`
+- retries use exponential backoff (configurable env):
+  - `ANALYSIS_WEBHOOK_MAX_ATTEMPTS`
+  - `ANALYSIS_WEBHOOK_RETRY_BASE_SECONDS`
+  - `ANALYSIS_WEBHOOK_RETRY_MAX_SECONDS`
 - each delivery includes:
   - `X-Agentic-Event`, `X-Agentic-Run-Id`, `X-Agentic-Delivery-Id`
   - optional `X-Agentic-Signature: sha256=<hex>` when signing secret is configured
+- inspect delivery records:
+  - per run: `/agents/{id}/analysis-runs/{run_id}/notification-deliveries/`
+  - per endpoint: `/analysis-webhook-endpoints/{id}/deliveries/`
 
 Run history query options:
 - `status=completed|failed|running|pending|canceled`
