@@ -4,7 +4,7 @@ from typing import cast
 from django.utils import timezone
 
 from apps.agents.models import Agent, ApprovalMode
-from apps.approvals.models import ApprovalChannel, ApprovalRequest
+from apps.approvals.models import ApprovalChannel, ApprovalRequest, TimeoutPolicy
 from apps.execution.models import TradeIntent
 
 
@@ -27,12 +27,14 @@ class ApprovalOrchestrator:
     ) -> ApprovalRequest:
         ttl_minutes = int(intent.agent.config.get("approval_ttl_minutes", 10))
         required_approvals = max(1, int(intent.agent.required_approvals))
+        timeout_policy = self._timeout_policy(intent.agent)
 
         approval_request = ApprovalRequest.objects.create(
             agent=intent.agent,
             requested_by=intent.agent.owner,
             channel=channel,
             required_approvals=required_approvals,
+            timeout_policy=timeout_policy,
             intent_payload={
                 "symbol": intent.symbol,
                 "side": intent.side,
@@ -60,3 +62,11 @@ class ApprovalOrchestrator:
             if normalized:
                 return normalized
         return {fallback}
+
+    @staticmethod
+    def _timeout_policy(agent: Agent) -> str:
+        policy = str(agent.config.get("timeout_policy", TimeoutPolicy.AUTO_REJECT)).lower()
+        allowed = {"auto_reject", "auto_pause", "escalate"}
+        if policy in allowed:
+            return policy
+        return "auto_reject"

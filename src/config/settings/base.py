@@ -113,6 +113,12 @@ CELERY_RESULT_BACKEND = env(
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = env.int("CELERY_TASK_TIME_LIMIT", default=60)
 CELERY_TASK_SOFT_TIME_LIMIT = env.int("CELERY_TASK_SOFT_TIME_LIMIT", default=45)
+CELERY_BEAT_SCHEDULE = {
+    "process-expired-approval-requests-every-minute": {
+        "task": "apps.approvals.tasks.process_expired_approval_requests_task",
+        "schedule": 60.0,
+    },
+}
 
 OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
 OPENROUTER_DEFAULT_MODEL = env("OPENROUTER_DEFAULT_MODEL", default="openai/gpt-4o-mini")

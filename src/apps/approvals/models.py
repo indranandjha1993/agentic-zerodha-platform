@@ -26,6 +26,12 @@ class DecisionType(models.TextChoices):
     REJECT = "reject", "Reject"
 
 
+class TimeoutPolicy(models.TextChoices):
+    AUTO_REJECT = "auto_reject", "Auto Reject"
+    AUTO_PAUSE = "auto_pause", "Auto Pause Agent"
+    ESCALATE = "escalate", "Escalate To Admin"
+
+
 class ApprovalRequest(TimeStampedModel):
     idempotency_key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
@@ -53,6 +59,13 @@ class ApprovalRequest(TimeStampedModel):
         default=ApprovalStatus.PENDING,
     )
     required_approvals = models.PositiveSmallIntegerField(default=1)
+    timeout_policy = models.CharField(
+        max_length=16,
+        choices=TimeoutPolicy.choices,
+        default=TimeoutPolicy.AUTO_REJECT,
+    )
+    is_escalated = models.BooleanField(default=False)
+    escalated_at = models.DateTimeField(null=True, blank=True)
 
     intent_payload = models.JSONField(default=dict, blank=True)
     risk_snapshot = models.JSONField(default=dict, blank=True)

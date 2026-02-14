@@ -11,12 +11,14 @@ class ApprovalRequestAdmin(admin.ModelAdmin):
         "channel",
         "status",
         "required_approvals",
+        "timeout_policy",
+        "is_escalated",
         "requested_by",
         "decided_by",
         "expires_at",
         "updated_at",
     )
-    list_filter = ("status", "channel")
+    list_filter = ("status", "channel", "timeout_policy", "is_escalated")
     search_fields = ("agent__name", "requested_by__username", "decided_by__username")
 
 
