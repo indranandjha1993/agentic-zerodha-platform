@@ -103,6 +103,10 @@ Required setup:
 
 Kite setup:
 - set `KITE_API_KEY` and `KITE_ACCESS_TOKEN` in `.env`
+- production startup (`config.settings.prod`) will fail fast if required runtime keys are missing:
+  - `OPENROUTER_API_KEY`
+  - `KITE_API_KEY`
+  - `KITE_ACCESS_TOKEN`
 
 Async behavior:
 - default mode is async queue (`AGENT_ANALYSIS_ASYNC_DEFAULT=True`)
