@@ -27,6 +27,10 @@ class MissingLlmCredentialError(OpenRouterAgentError):
     """Raised when user has no active OpenRouter credential."""
 
 
+class OpenRouterAgentCanceledError(OpenRouterAgentError):
+    """Raised when analysis execution is canceled."""
+
+
 class OpenRouterMarketAnalyst:
     def __init__(
         self,
@@ -47,6 +51,7 @@ class OpenRouterMarketAnalyst:
         max_steps: int | None = None,
         model: str | None = None,
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
+        should_continue: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         llm_credential = get_active_llm_credential(user=agent.owner)
         if llm_credential is None:
@@ -105,6 +110,8 @@ class OpenRouterMarketAnalyst:
         )
 
         for step_index in range(steps):
+            if should_continue is not None and not should_continue():
+                raise OpenRouterAgentCanceledError("Analysis run canceled by user.")
             self._emit_event(
                 on_event,
                 "llm_request",

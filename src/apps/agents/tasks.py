@@ -2,10 +2,11 @@ from typing import Any
 
 from celery import shared_task
 
-from apps.agents.models import Agent, AgentAnalysisRun, AgentStatus
+from apps.agents.models import Agent, AgentAnalysisRun, AgentStatus, AnalysisRunStatus
 from apps.agents.services.analysis_run_service import AgentAnalysisRunService
 from apps.agents.services.openrouter_market_analyst import (
     MissingLlmCredentialError,
+    OpenRouterAgentCanceledError,
     OpenRouterAgentError,
 )
 from apps.agents.services.runtime import AgentRuntime
@@ -25,9 +26,16 @@ def run_agent_task(self: Any, agent_id: int) -> dict[str, str]:
 @shared_task(bind=True, max_retries=2)
 def execute_agent_analysis_run_task(self: Any, run_id: int) -> dict[str, Any]:
     run = AgentAnalysisRun.objects.select_related("agent", "requested_by").get(id=run_id)
+    if run.status == AnalysisRunStatus.CANCELED:
+        return {"status": "canceled", "run_id": run.id}
+    if run.status not in {AnalysisRunStatus.PENDING, AnalysisRunStatus.RUNNING}:
+        return {"status": "skipped", "run_id": run.id, "run_status": run.status}
+
     service = AgentAnalysisRunService()
     try:
         result = service.execute(run)
+    except OpenRouterAgentCanceledError:
+        return {"status": "canceled", "run_id": run.id}
     except MissingLlmCredentialError as exc:
         AuditEvent.objects.create(
             actor=run.requested_by,
@@ -50,6 +58,9 @@ def execute_agent_analysis_run_task(self: Any, run_id: int) -> dict[str, Any]:
             message="OpenRouter market analysis failed for async run.",
         )
         return {"status": "failed", "run_id": run.id, "error": str(exc)}
+
+    if result.get("status") == "canceled":
+        return {"status": "canceled", "run_id": run.id}
 
     AuditEvent.objects.create(
         actor=run.requested_by,

@@ -6,6 +6,8 @@ from typing import cast
 from django.conf import settings
 from django.db.models import Q, QuerySet
 from django.http import StreamingHttpResponse
+from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -14,7 +16,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from apps.agents.models import Agent, AgentAnalysisEvent, AgentAnalysisRun
+from apps.agents.models import Agent, AgentAnalysisEvent, AgentAnalysisRun, AnalysisRunStatus
 from apps.agents.serializers import (
     AgentAnalysisEventSerializer,
     AgentAnalysisRequestSerializer,
@@ -149,13 +151,65 @@ class AgentViewSet(ModelViewSet):
         pk: str | None = None,
     ) -> Response:
         agent = self.get_object()
-        runs = (
+        runs_queryset = (
             AgentAnalysisRun.objects.filter(agent=agent)
             .select_related("requested_by")
-            .order_by("-created_at")
         )
+        status_filter = request.query_params.get("status", "").strip()
+        search_query = request.query_params.get("q", "").strip()
+        date_from_param = request.query_params.get("date_from", "").strip()
+        date_to_param = request.query_params.get("date_to", "").strip()
+        order_by = request.query_params.get("order_by", "-created_at").strip()
+
+        if status_filter != "":
+            runs_queryset = runs_queryset.filter(status=status_filter)
+        if search_query != "":
+            runs_queryset = runs_queryset.filter(
+                Q(query__icontains=search_query)
+                | Q(model__icontains=search_query)
+                | Q(result_text__icontains=search_query)
+            )
+
+        date_from = parse_date(date_from_param) if date_from_param else None
+        date_to = parse_date(date_to_param) if date_to_param else None
+        if date_from is not None:
+            runs_queryset = runs_queryset.filter(created_at__date__gte=date_from)
+        if date_to is not None:
+            runs_queryset = runs_queryset.filter(created_at__date__lte=date_to)
+
+        allowed_order_fields = {
+            "created_at",
+            "-created_at",
+            "started_at",
+            "-started_at",
+            "completed_at",
+            "-completed_at",
+        }
+        if order_by not in allowed_order_fields:
+            order_by = "-created_at"
+        runs_queryset = runs_queryset.order_by(order_by)
+
+        page_param = request.query_params.get("page", "1")
+        page_size_param = request.query_params.get("page_size", "20")
+        page = int(page_param) if page_param.isdigit() else 1
+        page_size = int(page_size_param) if page_size_param.isdigit() else 20
+        page = max(1, page)
+        page_size = max(1, min(page_size, 100))
+        offset = (page - 1) * page_size
+
+        total = runs_queryset.count()
+        runs = list(runs_queryset[offset : offset + page_size])
         serializer = AgentAnalysisRunSerializer(runs, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response(
+            {
+                "count": total,
+                "page": page,
+                "page_size": page_size,
+                "results": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["get"], url_path=r"analysis-runs/(?P<run_id>[^/.]+)")
     def get_analysis_run(
@@ -185,6 +239,55 @@ class AgentViewSet(ModelViewSet):
             return Response({"detail": "Analysis run not found."}, status=status.HTTP_404_NOT_FOUND)
 
         payload = AgentAnalysisRunService.status_payload(run)
+        serializer = AgentAnalysisRunStatusSerializer(payload)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path=r"analysis-runs/(?P<run_id>[^/.]+)/cancel")
+    def cancel_analysis_run(
+        self,
+        request: Request,
+        run_id: str,
+        pk: str | None = None,
+    ) -> Response:
+        agent = self.get_object()
+        run = self._get_run(agent=agent, run_id=run_id)
+        if run is None:
+            return Response({"detail": "Analysis run not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if run.status in {
+            AnalysisRunStatus.COMPLETED,
+            AnalysisRunStatus.FAILED,
+            AnalysisRunStatus.CANCELED,
+        }:
+            return Response(
+                {"detail": f"Run cannot be canceled in status '{run.status}'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        metadata = dict(run.metadata)
+        metadata["canceled_by"] = request.user.id
+        metadata["canceled_at"] = timezone.now().isoformat()
+        run.status = AnalysisRunStatus.CANCELED
+        run.error_message = run.error_message or "Canceled by user."
+        run.completed_at = run.completed_at or timezone.now()
+        run.metadata = metadata
+        run.save(
+            update_fields=[
+                "status",
+                "error_message",
+                "completed_at",
+                "metadata",
+                "updated_at",
+            ]
+        )
+
+        run_service = AgentAnalysisRunService()
+        run_service.append_event(
+            run=run,
+            event_type="cancel_requested",
+            payload={"actor_id": request.user.id},
+        )
+        payload = run_service.status_payload(run)
         serializer = AgentAnalysisRunStatusSerializer(payload)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

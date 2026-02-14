@@ -61,9 +61,10 @@ def test_analysis_run_history_and_detail_endpoints() -> None:
     list_response = client.get(f"/api/v1/agents/{agent.id}/analysis-runs/")
     assert list_response.status_code == 200
     list_payload = list_response.json()
-    assert len(list_payload) == 1
-    assert list_payload[0]["id"] == run.id
-    assert list_payload[0]["event_count"] == 2
+    assert list_payload["count"] == 1
+    assert len(list_payload["results"]) == 1
+    assert list_payload["results"][0]["id"] == run.id
+    assert list_payload["results"][0]["event_count"] == 2
 
     detail_response = client.get(f"/api/v1/agents/{agent.id}/analysis-runs/{run.id}/")
     assert detail_response.status_code == 200
@@ -188,3 +189,92 @@ def test_analysis_run_status_endpoint_returns_compact_payload() -> None:
     assert payload["is_final"] is False
     assert payload["latest_sequence"] == 2
     assert payload["latest_event_type"] == "tool_result"
+
+
+@pytest.mark.django_db
+def test_analysis_run_list_supports_filters_and_pagination() -> None:
+    owner = User.objects.create_user(
+        username="filter-owner",
+        email="filter-owner@example.com",
+        password="test-pass",
+    )
+    agent = Agent.objects.create(
+        owner=owner,
+        name="Filter Agent",
+        slug="filter-agent",
+        instruction="Filter and pagination test.",
+        status=AgentStatus.ACTIVE,
+        execution_mode=ExecutionMode.PAPER,
+        approval_mode=ApprovalMode.ALWAYS,
+        is_auto_enabled=True,
+    )
+    AgentAnalysisRun.objects.create(
+        agent=agent,
+        requested_by=owner,
+        status=AnalysisRunStatus.COMPLETED,
+        query="Analyze HDFCBANK",
+        model="openai/gpt-4o-mini",
+        max_steps=4,
+        result_text="HDFCBANK analysis",
+    )
+    AgentAnalysisRun.objects.create(
+        agent=agent,
+        requested_by=owner,
+        status=AnalysisRunStatus.FAILED,
+        query="Analyze ITC",
+        model="openai/gpt-4o-mini",
+        max_steps=4,
+        error_message="Failure",
+    )
+
+    client = APIClient()
+    client.force_authenticate(owner)
+    response = client.get(
+        f"/api/v1/agents/{agent.id}/analysis-runs/?status=completed&q=HDFCBANK&page=1&page_size=1"
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    assert payload["page"] == 1
+    assert payload["page_size"] == 1
+    assert len(payload["results"]) == 1
+    assert payload["results"][0]["status"] == AnalysisRunStatus.COMPLETED
+
+
+@pytest.mark.django_db
+def test_cancel_analysis_run_endpoint_marks_run_canceled() -> None:
+    owner = User.objects.create_user(
+        username="cancel-owner",
+        email="cancel-owner@example.com",
+        password="test-pass",
+    )
+    agent = Agent.objects.create(
+        owner=owner,
+        name="Cancel Agent",
+        slug="cancel-agent",
+        instruction="Cancel endpoint test.",
+        status=AgentStatus.ACTIVE,
+        execution_mode=ExecutionMode.PAPER,
+        approval_mode=ApprovalMode.ALWAYS,
+        is_auto_enabled=True,
+    )
+    run = AgentAnalysisRun.objects.create(
+        agent=agent,
+        requested_by=owner,
+        status=AnalysisRunStatus.PENDING,
+        query="Analyze AXISBANK",
+        model="openai/gpt-4o-mini",
+        max_steps=4,
+    )
+
+    client = APIClient()
+    client.force_authenticate(owner)
+    response = client.post(f"/api/v1/agents/{agent.id}/analysis-runs/{run.id}/cancel/")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AnalysisRunStatus.CANCELED
+    assert payload["is_final"] is True
+
+    run.refresh_from_db()
+    assert run.status == AnalysisRunStatus.CANCELED
+    assert run.events.filter(event_type="cancel_requested").exists()

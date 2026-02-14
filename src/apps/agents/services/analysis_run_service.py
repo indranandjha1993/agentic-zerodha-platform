@@ -7,6 +7,7 @@ from django.utils import timezone
 from apps.agents.models import Agent, AgentAnalysisEvent, AgentAnalysisRun, AnalysisRunStatus
 from apps.agents.services.openrouter_market_analyst import (
     MissingLlmCredentialError,
+    OpenRouterAgentCanceledError,
     OpenRouterAgentError,
     OpenRouterMarketAnalyst,
 )
@@ -36,6 +37,16 @@ class AgentAnalysisRunService:
         return cast(AgentAnalysisRun, run)
 
     def execute(self, run: AgentAnalysisRun) -> dict[str, Any]:
+        if run.status == AnalysisRunStatus.CANCELED:
+            return {
+                "status": "canceled",
+                "model": run.model,
+                "analysis": "",
+                "tool_trace": [],
+                "usage": run.usage,
+                "steps_executed": run.steps_executed,
+            }
+
         run.status = AnalysisRunStatus.RUNNING
         run.started_at = timezone.now()
         run.save(update_fields=["status", "started_at", "updated_at"])
@@ -50,7 +61,13 @@ class AgentAnalysisRunService:
         )
 
         def on_event(event_type: str, payload: dict[str, Any]) -> None:
+            if not should_continue():
+                raise OpenRouterAgentCanceledError("Analysis run canceled by user.")
             self.append_event(run=run, event_type=event_type, payload=payload)
+
+        def should_continue() -> bool:
+            run.refresh_from_db(fields=["status"])
+            return bool(run.status != AnalysisRunStatus.CANCELED)
 
         try:
             result = self.analyst.analyze(
@@ -59,7 +76,28 @@ class AgentAnalysisRunService:
                 model=run.model or None,
                 max_steps=run.max_steps,
                 on_event=on_event,
+                should_continue=should_continue,
             )
+        except OpenRouterAgentCanceledError:
+            run.refresh_from_db(fields=["status", "completed_at"])
+            run.status = AnalysisRunStatus.CANCELED
+            if run.completed_at is None:
+                run.completed_at = timezone.now()
+            run.error_message = run.error_message or "Canceled by user."
+            run.save(update_fields=["status", "completed_at", "error_message", "updated_at"])
+            self.append_event(
+                run=run,
+                event_type="run_canceled",
+                payload={"reason": "Canceled by user."},
+            )
+            return {
+                "status": "canceled",
+                "model": run.model,
+                "analysis": "",
+                "tool_trace": [],
+                "usage": run.usage,
+                "steps_executed": run.steps_executed,
+            }
         except (MissingLlmCredentialError, OpenRouterAgentError) as exc:
             run.status = AnalysisRunStatus.FAILED
             run.error_message = str(exc)
@@ -96,6 +134,25 @@ class AgentAnalysisRunService:
                 payload={"error": str(exc)},
             )
             raise OpenRouterAgentError(str(exc)) from exc
+
+        run.refresh_from_db(fields=["status"])
+        if run.status == AnalysisRunStatus.CANCELED:
+            run.completed_at = run.completed_at or timezone.now()
+            run.error_message = run.error_message or "Canceled by user."
+            run.save(update_fields=["completed_at", "error_message", "updated_at"])
+            self.append_event(
+                run=run,
+                event_type="run_canceled",
+                payload={"reason": "Canceled by user."},
+            )
+            return {
+                "status": "canceled",
+                "model": run.model,
+                "analysis": "",
+                "tool_trace": [],
+                "usage": run.usage,
+                "steps_executed": run.steps_executed,
+            }
 
         run.status = AnalysisRunStatus.COMPLETED
         run.result_text = str(result.get("analysis", ""))

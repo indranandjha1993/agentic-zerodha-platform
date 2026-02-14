@@ -58,6 +58,7 @@ docker compose up --build
 - `GET /api/v1/agents/{id}/analysis-runs/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/status/`
+- `POST /api/v1/agents/{id}/analysis-runs/{run_id}/cancel/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/stream/`
 - `GET /api/v1/approval-requests/`
@@ -101,6 +102,14 @@ Async behavior:
 - default mode is async queue (`AGENT_ANALYSIS_ASYNC_DEFAULT=True`)
 - pass `"async_mode": false` in request body to execute synchronously
 - poll compact run status using `/analysis-runs/{run_id}/status/`
+- cancel pending/running runs with `/analysis-runs/{run_id}/cancel/`
+
+Run history query options:
+- `status=completed|failed|running|pending|canceled`
+- `q=<search text>` (matches query/model/result text)
+- `date_from=YYYY-MM-DD`, `date_to=YYYY-MM-DD`
+- `order_by=-created_at|created_at|-started_at|started_at|-completed_at|completed_at`
+- `page=1&page_size=20` (max page_size: 100)
 
 ## Project Structure
 
