@@ -18,5 +18,12 @@ class KiteSession(TimeStampedModel):
     is_active = models.BooleanField(default=True)
     metadata = models.JSONField(default=dict, blank=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=("user", "is_active")),
+            models.Index(fields=("kite_user_id",)),
+            models.Index(fields=("is_active", "session_expires_at")),
+        ]
+
     def __str__(self) -> str:
         return f"KiteSession<{self.user_id}:{self.kite_user_id}>"

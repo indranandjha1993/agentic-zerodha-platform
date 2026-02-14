@@ -1,0 +1,56 @@
+{% load i18n static %}
+{% if cl.search_fields %}
+  <div id="toolbar">
+    <form id="changelist-search" class="ops-listing-search" method="get" role="search">
+      <div class="ops-listing-search__field">
+        <label class="ops-listing-search__icon" for="searchbar" aria-hidden="true">
+          <img src="{% static 'admin/img/search.svg' %}" alt="">
+        </label>
+        <input
+          type="text"
+          size="40"
+          name="{{ search_var }}"
+          value="{{ cl.query }}"
+          id="searchbar"
+          placeholder="Search {{ cl.opts.verbose_name_plural }}"
+          {% if cl.search_help_text %}aria-describedby="searchbar_helptext"{% endif %}
+        >
+        <button type="submit" class="ops-listing-search__submit">{% translate "Search" %}</button>
+        {% if cl.query %}
+          <button
+            type="button"
+            class="ops-listing-search__clear"
+            onclick="const field=this.form.querySelector('#searchbar'); if (field) { field.value=''; } this.form.submit();"
+          >
+            {% translate "Clear" %}
+          </button>
+        {% endif %}
+      </div>
+
+      {% for pair in cl.params.items %}
+        {% if pair.0 != search_var %}
+          <input type="hidden" name="{{ pair.0 }}" value="{{ pair.1 }}">
+        {% endif %}
+      {% endfor %}
+
+      {% if cl.search_help_text %}
+        <p id="searchbar_helptext" class="ops-listing-search__hint">{{ cl.search_help_text }}</p>
+      {% else %}
+        <p class="ops-listing-search__hint">
+          {% translate "Use symbol, id, user, or status terms for faster filtering." %}
+        </p>
+      {% endif %}
+
+      {% if show_result_count %}
+        <p class="ops-listing-search__count">
+          {% blocktranslate count counter=cl.result_count %}
+            {{ counter }} result
+          {% plural %}
+            {{ counter }} results
+          {% endblocktranslate %}
+          ({{ cl.full_result_count }} total)
+        </p>
+      {% endif %}
+    </form>
+  </div>
+{% endif %}

@@ -83,6 +83,15 @@ class ApprovalRequest(TimeStampedModel):
     )
     decision_reason = models.TextField(blank=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=("status", "expires_at")),
+            models.Index(fields=("agent", "status", "created_at")),
+            models.Index(fields=("requested_by", "created_at")),
+            models.Index(fields=("decided_by", "decided_at")),
+            models.Index(fields=("channel", "status", "created_at")),
+        ]
+
     def __str__(self) -> str:
         return f"ApprovalRequest<{self.id}>:{self.status}"
 
@@ -113,6 +122,11 @@ class ApprovalDecision(TimeStampedModel):
                 name="unique_decision_per_actor_per_request",
             )
         ]
+        indexes = [
+            models.Index(fields=("approval_request", "created_at")),
+            models.Index(fields=("actor", "created_at")),
+            models.Index(fields=("channel", "decision", "created_at")),
+        ]
 
     def __str__(self) -> str:
         return f"ApprovalDecision<{self.approval_request_id}>:{self.decision}"
@@ -132,7 +146,10 @@ class TelegramCallbackEvent(TimeStampedModel):
     raw_payload = models.JSONField(default=dict, blank=True)
 
     class Meta:
-        indexes = [models.Index(fields=("approval_request", "created_at"))]
+        indexes = [
+            models.Index(fields=("approval_request", "created_at")),
+            models.Index(fields=("telegram_user_id", "created_at")),
+        ]
 
     def __str__(self) -> str:
         return f"TelegramCallbackEvent<{self.callback_query_id}>"

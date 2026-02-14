@@ -1,0 +1,241 @@
+{% extends "admin/base_site.html" %}
+{% load admin_dashboard i18n %}
+
+{% block bodyclass %}{{ block.super }} ops-dashboard-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block content %}
+  {% get_admin_dashboard_snapshot as snapshot %}
+
+  <div
+    class="ops-dashboard"
+    data-control-tower="1"
+    data-metrics-url="{% url 'admin-control-tower-metrics' %}"
+    data-refresh-ms="{{ snapshot.refresh_interval_ms }}"
+  >
+    <section class="ops-hero">
+      <div>
+        <p class="ops-eyebrow">Command Center</p>
+        <h1>Operational Control Tower</h1>
+        <p class="ops-subtitle">
+          Unified visibility across agents, approvals, execution, market feeds, broker sessions, and audit risk.
+        </p>
+      </div>
+      <div class="ops-hero__meta">
+        <p>
+          Last refreshed:
+          <strong data-generated-at>{{ snapshot.generated_at_label }}</strong>
+        </p>
+        <p class="ops-connection-pill" data-connection-state="online">Live sync active</p>
+        <div class="ops-hero__actions">
+          <a href="{% url 'admin:approvals_approvalrequest_changelist' %}?status__exact=pending">Open Approval Queue</a>
+          <a href="{% url 'admin:execution_tradeintent_changelist' %}?status__exact=failed">Inspect Failed Intents</a>
+          <a href="{% url 'admin:agents_agentanalysisnotificationdelivery_changelist' %}?success__exact=0">Webhook Failures</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="ops-headline-grid">
+      {% for card in snapshot.headline_cards %}
+        <article class="ops-stat-card tone-{{ card.tone }}">
+          <p class="ops-stat-card__title">{{ card.title }}</p>
+          <p class="ops-stat-card__value" data-metric-key="{{ card.metric_key }}">
+            {{ snapshot.metric_values|metric_value:card.metric_key }}
+          </p>
+          <p class="ops-stat-card__desc">{{ card.description }}</p>
+          <a class="ops-stat-card__link" href="{{ card.href }}">Open</a>
+        </article>
+      {% endfor %}
+    </section>
+
+    <section class="ops-panel-grid">
+      {% for panel in snapshot.module_panels %}
+        <article class="ops-module-card">
+          <header>
+            <h2>{{ panel.title }}</h2>
+            <a href="{{ panel.href }}">Open</a>
+          </header>
+          <p>{{ panel.description }}</p>
+          <ul>
+            {% for metric in panel.metrics %}
+              <li>
+                <span>{{ metric.label }}</span>
+                <strong data-metric-key="{{ metric.metric_key }}">
+                  {{ snapshot.metric_values|metric_value:metric.metric_key }}
+                </strong>
+              </li>
+            {% endfor %}
+          </ul>
+        </article>
+      {% endfor %}
+    </section>
+
+    <section class="ops-grid-split">
+      <article class="ops-surface">
+        <header>
+          <h2>Queue Pressure</h2>
+          <a href="{% url 'admin:approvals_approvalrequest_changelist' %}?status__exact=pending">Queue details</a>
+        </header>
+        <div class="ops-queue-grid" data-render-target="queue_cards">
+          {% for card in snapshot.queue_cards %}
+            <article class="ops-queue-card tone-{{ card.tone }}">
+              <h3>{{ card.title }}</h3>
+              <p class="ops-queue-card__value" data-metric-key="{{ card.metric_key }}">
+                {{ snapshot.metric_values|metric_value:card.metric_key }}
+              </p>
+              <p>{{ card.detail }}</p>
+              <a href="{{ card.href }}">Open</a>
+            </article>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="ops-surface">
+        <header>
+          <h2>Alerts</h2>
+          <a href="{% url 'admin:audit_auditevent_changelist' %}">Audit stream</a>
+        </header>
+        <ul class="ops-alert-list" data-render-target="alerts">
+          {% for alert in snapshot.alerts %}
+            <li class="tone-{{ alert.tone }}">
+              <a href="{{ alert.href }}">
+                <strong>{{ alert.title }}</strong>
+                <span>{{ alert.detail }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      </article>
+    </section>
+
+    <section class="ops-feed-grid">
+      <article class="ops-surface">
+        <header>
+          <h2>Failed Analysis Runs</h2>
+          <a href="{% url 'admin:agents_agentanalysisrun_changelist' %}?status__exact=failed">All failed runs</a>
+        </header>
+        <ul class="ops-feed-list" data-render-target="recent_failed_runs">
+          {% for row in snapshot.recent.failed_runs %}
+            <li class="tone-{{ row.tone }}">
+              <a href="{{ row.href }}">
+                <strong>{{ row.title }}</strong>
+                <span>{{ row.subtitle }}</span>
+                <time>{{ row.timestamp }}</time>
+              </a>
+            </li>
+          {% empty %}
+            <li class="is-empty">No failed runs yet.</li>
+          {% endfor %}
+        </ul>
+      </article>
+      <article class="ops-surface">
+        <header>
+          <h2>Pending Approval Deadlines</h2>
+          <a href="{% url 'admin:approvals_approvalrequest_changelist' %}?status__exact=pending">Approval queue</a>
+        </header>
+        <ul class="ops-feed-list" data-render-target="recent_expiring_approvals">
+          {% for row in snapshot.recent.expiring_approvals %}
+            <li class="tone-{{ row.tone }}">
+              <a href="{{ row.href }}">
+                <strong>{{ row.title }}</strong>
+                <span>{{ row.subtitle }}</span>
+                <time>{{ row.timestamp }}</time>
+              </a>
+            </li>
+          {% empty %}
+            <li class="is-empty">No pending approvals with expiry.</li>
+          {% endfor %}
+        </ul>
+      </article>
+      <article class="ops-surface">
+        <header>
+          <h2>Execution Failures</h2>
+          <a href="{% url 'admin:execution_tradeintent_changelist' %}?status__exact=failed">All failed intents</a>
+        </header>
+        <ul class="ops-feed-list" data-render-target="recent_failed_intents">
+          {% for row in snapshot.recent.failed_intents %}
+            <li class="tone-{{ row.tone }}">
+              <a href="{{ row.href }}">
+                <strong>{{ row.title }}</strong>
+                <span>{{ row.subtitle }}</span>
+                <time>{{ row.timestamp }}</time>
+              </a>
+            </li>
+          {% empty %}
+            <li class="is-empty">No failed intents logged.</li>
+          {% endfor %}
+        </ul>
+      </article>
+      <article class="ops-surface">
+        <header>
+          <h2>Audit Highlights</h2>
+          <a href="{% url 'admin:audit_auditevent_changelist' %}">All audit events</a>
+        </header>
+        <ul class="ops-feed-list" data-render-target="recent_audit_highlights">
+          {% for row in snapshot.recent.audit_highlights %}
+            <li class="tone-{{ row.tone }}">
+              <a href="{{ row.href }}">
+                <strong>{{ row.title }}</strong>
+                <span>{{ row.subtitle }}</span>
+                <time>{{ row.timestamp }}</time>
+              </a>
+            </li>
+          {% empty %}
+            <li class="is-empty">No warning/error audit events.</li>
+          {% endfor %}
+        </ul>
+      </article>
+    </section>
+
+    <section class="ops-module-directory">
+      <header>
+        <h2>Admin Module Directory</h2>
+        <p>Direct access to every configured model surface.</p>
+        <div class="ops-module-search">
+          <label for="ops-module-search-input">Find module or model</label>
+          <input
+            id="ops-module-search-input"
+            type="search"
+            autocomplete="off"
+            placeholder="Type module/model name and press / to focus"
+            data-module-search-input
+          >
+          <span data-module-search-meta>Showing all modules.</span>
+        </div>
+      </header>
+      <div class="ops-app-grid">
+        {% for app in app_list %}
+          <article class="ops-app-card" data-module-card>
+            <h3>
+              {% if app.app_url %}
+                <a href="{{ app.app_url }}">{{ app.name }}</a>
+              {% else %}
+                {{ app.name }}
+              {% endif %}
+            </h3>
+            <ul>
+              {% for model in app.models %}
+                <li data-model-row>
+                  {% if model.admin_url %}
+                    <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                  {% else %}
+                    {{ model.name }}
+                  {% endif %}
+                  {% if model.add_url %}
+                    <a class="ops-app-card__add" href="{{ model.add_url }}">Add</a>
+                  {% endif %}
+                </li>
+              {% empty %}
+                <li class="is-empty">{% translate "No models available." %}</li>
+              {% endfor %}
+            </ul>
+          </article>
+        {% endfor %}
+      </div>
+      <p class="ops-module-search-empty" data-module-search-empty hidden>
+        No modules matched your search.
+      </p>
+    </section>
+  </div>
+{% endblock %}

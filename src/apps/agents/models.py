@@ -69,6 +69,11 @@ class Agent(TimeStampedModel):
         constraints = [
             models.UniqueConstraint(fields=("owner", "slug"), name="unique_agent_slug_per_owner")
         ]
+        indexes = [
+            models.Index(fields=("status", "updated_at")),
+            models.Index(fields=("owner", "status")),
+            models.Index(fields=("is_auto_enabled", "status")),
+        ]
 
     def __str__(self) -> str:
         return f"{self.owner_id}:{self.slug}"
@@ -132,6 +137,7 @@ class AgentAnalysisRun(TimeStampedModel):
         indexes = [
             models.Index(fields=("agent", "created_at")),
             models.Index(fields=("status", "created_at")),
+            models.Index(fields=("requested_by", "created_at")),
         ]
 
     def __str__(self) -> str:

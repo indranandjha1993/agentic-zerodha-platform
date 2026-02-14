@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}
+  {% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Agentic Trade Console
+{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap"
+  >
+  <link rel="stylesheet" href="{% static 'admin/custom_admin.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="{% static 'admin/control_tower.js' %}" defer></script>
+{% endblock %}
+
+{% block branding %}
+  <div class="ops-brand-shell">
+    <a class="ops-brand" href="{% url 'admin:index' %}">
+      <span class="ops-brand__mark">AT</span>
+      <span class="ops-brand__copy">
+        <strong>Agentic Trade Console</strong>
+        <small>Zerodha Operations Command</small>
+      </span>
+    </a>
+    <div class="ops-brand__links">
+      <a href="{% url 'admin:agents_agent_changelist' %}">Agents</a>
+      <a href="{% url 'admin:approvals_approvalrequest_changelist' %}?status__exact=pending">Approvals</a>
+      <a href="{% url 'admin:execution_tradeintent_changelist' %}">Execution</a>
+      <a href="{% url 'admin:audit_auditevent_changelist' %}">Audit</a>
+    </div>
+  </div>
+{% endblock %}
+
+{% block userlinks %}
+  {{ block.super }}
+  <a href="{% url 'admin-control-tower-metrics' %}" target="_blank" rel="noopener noreferrer">
+    {% translate "Live Metrics API" %}
+  </a>
+{% endblock %}

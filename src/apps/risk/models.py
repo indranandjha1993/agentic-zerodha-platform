@@ -29,6 +29,10 @@ class RiskPolicy(TimeStampedModel):
                 name="unique_risk_policy_name_per_owner",
             )
         ]
+        indexes = [
+            models.Index(fields=("owner", "is_default")),
+            models.Index(fields=("is_default",)),
+        ]
 
     def __str__(self) -> str:
         return f"{self.owner_id}:{self.name}"

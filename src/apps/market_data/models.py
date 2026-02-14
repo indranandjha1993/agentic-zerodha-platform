@@ -25,6 +25,11 @@ class Instrument(TimeStampedModel):
                 name="unique_symbol_exchange_segment",
             )
         ]
+        indexes = [
+            models.Index(fields=("exchange", "tradingsymbol")),
+            models.Index(fields=("is_active", "exchange")),
+            models.Index(fields=("name",)),
+        ]
 
     def __str__(self) -> str:
         return f"{self.exchange}:{self.tradingsymbol}"
@@ -42,7 +47,10 @@ class TickSnapshot(TimeStampedModel):
     source = models.CharField(max_length=32, default="kite_ticker")
 
     class Meta:
-        indexes = [models.Index(fields=("instrument", "created_at"))]
+        indexes = [
+            models.Index(fields=("instrument", "created_at")),
+            models.Index(fields=("source", "created_at")),
+        ]
 
     def __str__(self) -> str:
         return f"Tick<{self.instrument_id}:{self.last_price}>"

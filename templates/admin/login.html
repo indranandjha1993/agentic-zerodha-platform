@@ -1,0 +1,71 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block bodyclass %}{{ block.super }} login{% endblock %}
+
+{% block nav-sidebar %}{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block content %}
+  <div class="ops-login-shell">
+    <section class="ops-login-intro">
+      <p class="ops-eyebrow">Secure Entry</p>
+      <h1>Operate the Agentic Trade Console</h1>
+      <p>
+        Sign in to supervise OpenRouter analysis agents, Zerodha execution flows, approval queues,
+        and Telegram-assisted operator workflows.
+      </p>
+      <ul class="ops-login-points">
+        <li>
+          <strong>Live control:</strong>
+          <span>Monitor queues, incidents, and agent health in one view.</span>
+        </li>
+        <li>
+          <strong>Human safeguards:</strong>
+          <span>Apply admin and Telegram approval policies before order execution.</span>
+        </li>
+        <li>
+          <strong>Audit visibility:</strong>
+          <span>Track every decision and action through high-fidelity event logs.</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="ops-login-panel">
+      <h2>{% translate "Sign in" %}</h2>
+      {% if form.errors and not form.non_field_errors %}
+        <p class="errornote">{% translate "Enter valid credentials and try again." %}</p>
+      {% endif %}
+      {% if form.non_field_errors %}
+        {% for error in form.non_field_errors %}
+          <p class="errornote">{{ error }}</p>
+        {% endfor %}
+      {% endif %}
+
+      <form action="{{ app_path }}" method="post" id="login-form">
+        {% csrf_token %}
+        <div class="form-row">
+          {{ form.username.errors }}
+          {{ form.username.label_tag }} {{ form.username }}
+        </div>
+        <div class="form-row">
+          {{ form.password.errors }}
+          {{ form.password.label_tag }} {{ form.password }}
+          <input type="hidden" name="next" value="{{ next }}">
+        </div>
+
+        {% url 'admin_password_reset' as password_reset_url %}
+        {% if password_reset_url %}
+          <p>
+            <a href="{{ password_reset_url }}">{% translate "Forgotten your password?" %}</a>
+          </p>
+        {% endif %}
+
+        <div class="submit-row">
+          <input type="submit" value="{% translate 'Sign in' %}">
+        </div>
+      </form>
+    </section>
+  </div>
+{% endblock %}

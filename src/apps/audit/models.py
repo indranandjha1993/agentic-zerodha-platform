@@ -29,7 +29,13 @@ class AuditEvent(TimeStampedModel):
     message = models.TextField(blank=True)
 
     class Meta:
-        indexes = [models.Index(fields=("event_type", "created_at"))]
+        indexes = [
+            models.Index(fields=("event_type", "created_at")),
+            models.Index(fields=("level", "created_at")),
+            models.Index(fields=("entity_type", "entity_id", "created_at")),
+            models.Index(fields=("request_id", "created_at")),
+            models.Index(fields=("actor", "created_at")),
+        ]
 
     def __str__(self) -> str:
         return f"AuditEvent<{self.event_type}:{self.level}>"

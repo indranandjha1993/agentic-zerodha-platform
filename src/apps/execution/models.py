@@ -84,6 +84,15 @@ class TradeIntent(TimeStampedModel):
 
     placed_at = models.DateTimeField(null=True, blank=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=("status", "created_at")),
+            models.Index(fields=("agent", "created_at")),
+            models.Index(fields=("symbol", "created_at")),
+            models.Index(fields=("broker_order_id",)),
+            models.Index(fields=("placed_at",)),
+        ]
+
     def save(self, *args: object, **kwargs: object) -> None:
         if self.price is not None and self.quantity:
             self.notional_value = Decimal(self.price) * Decimal(self.quantity)

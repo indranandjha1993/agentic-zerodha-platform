@@ -14,4 +14,7 @@ class RiskPolicyAdmin(admin.ModelAdmin):
         "is_default",
     )
     list_filter = ("is_default", "require_market_hours", "allow_shorting")
-    search_fields = ("name", "owner__username", "owner__email")
+    search_fields = ("=id", "^name", "^owner__username", "owner__email")
+    search_help_text = "Search by policy id/name or owner identity."
+    list_select_related = ("owner",)
+    ordering = ("-updated_at",)

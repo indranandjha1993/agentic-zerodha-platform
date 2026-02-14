@@ -13,4 +13,13 @@ class KiteSessionAdmin(admin.ModelAdmin):
         "updated_at",
     )
     list_filter = ("is_active",)
-    search_fields = ("user__username", "kite_user_id")
+    search_fields = (
+        "=id",
+        "^user__username",
+        "user__email",
+        "^kite_user_id",
+        "^access_token_last4",
+    )
+    search_help_text = "Search by session id, user identity, Kite user id, or token suffix."
+    list_select_related = ("user",)
+    ordering = ("-updated_at",)

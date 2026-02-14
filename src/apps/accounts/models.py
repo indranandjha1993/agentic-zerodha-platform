@@ -13,5 +13,8 @@ class UserProfile(TimeStampedModel):
     telegram_chat_id = models.CharField(max_length=64, blank=True)
     timezone = models.CharField(max_length=64, default="Asia/Kolkata")
 
+    class Meta:
+        indexes = [models.Index(fields=("telegram_chat_id",))]
+
     def __str__(self) -> str:
         return f"Profile<{self.user_id}>"
