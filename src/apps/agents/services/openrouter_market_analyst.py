@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from typing import Any, cast
 
 from django.conf import settings
@@ -45,6 +46,7 @@ class OpenRouterMarketAnalyst:
         user_query: str,
         max_steps: int | None = None,
         model: str | None = None,
+        on_event: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
         llm_credential = get_active_llm_credential(user=agent.owner)
         if llm_credential is None:
@@ -93,8 +95,21 @@ class OpenRouterMarketAnalyst:
         tool_trace: list[dict[str, Any]] = []
         final_analysis = ""
         usage_payload: dict[str, Any] = {}
+        self._emit_event(
+            on_event,
+            "analysis_started",
+            {
+                "model": selected_model,
+                "max_steps": steps,
+            },
+        )
 
-        for _ in range(steps):
+        for step_index in range(steps):
+            self._emit_event(
+                on_event,
+                "llm_request",
+                {"step": step_index + 1},
+            )
             response = client.chat.send(
                 model=selected_model,
                 messages=cast(Any, messages),
@@ -123,8 +138,28 @@ class OpenRouterMarketAnalyst:
                     }
                 )
                 for tool_call in tool_calls:
+                    self._emit_event(
+                        on_event,
+                        "tool_call",
+                        {
+                            "step": step_index + 1,
+                            "tool_call_id": tool_call.id,
+                            "tool_name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments,
+                        },
+                    )
                     tool_result = self._execute_tool_call(tool_call)
                     tool_trace.append(tool_result)
+                    self._emit_event(
+                        on_event,
+                        "tool_result",
+                        {
+                            "step": step_index + 1,
+                            "tool_call_id": tool_result["tool_call_id"],
+                            "tool_name": tool_result["tool_name"],
+                            "result": tool_result["result"],
+                        },
+                    )
                     messages.append(
                         {
                             "role": "tool",
@@ -144,7 +179,7 @@ class OpenRouterMarketAnalyst:
         if final_analysis.strip() == "":
             final_analysis = "No final analysis produced by the OpenRouter agent."
 
-        return {
+        result = {
             "status": "ok",
             "model": selected_model,
             "analysis": final_analysis,
@@ -152,6 +187,16 @@ class OpenRouterMarketAnalyst:
             "usage": usage_payload,
             "steps_executed": len(tool_trace),
         }
+        self._emit_event(
+            on_event,
+            "analysis_completed",
+            {
+                "model": selected_model,
+                "steps_executed": len(tool_trace),
+                "usage": usage_payload,
+            },
+        )
+        return result
 
     def _execute_tool_call(self, tool_call: ChatMessageToolCall) -> dict[str, Any]:
         tool_name = tool_call.function.name
@@ -257,3 +302,13 @@ class OpenRouterMarketAnalyst:
             "completion_tokens": getattr(usage, "completion_tokens", None),
             "total_tokens": getattr(usage, "total_tokens", None),
         }
+
+    @staticmethod
+    def _emit_event(
+        on_event: Callable[[str, dict[str, Any]], None] | None,
+        event_type: str,
+        payload: dict[str, Any],
+    ) -> None:
+        if on_event is None:
+            return
+        on_event(event_type, payload)

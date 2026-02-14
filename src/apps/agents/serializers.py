@@ -2,7 +2,7 @@ from typing import Any, cast
 
 from rest_framework import serializers
 
-from apps.agents.models import Agent
+from apps.agents.models import Agent, AgentAnalysisEvent, AgentAnalysisRun
 
 
 class AgentSerializer(serializers.ModelSerializer):
@@ -79,3 +79,52 @@ class AgentAnalysisRequestSerializer(serializers.Serializer):
     query = serializers.CharField(max_length=4000)
     model = serializers.CharField(max_length=128, required=False, allow_blank=True)
     max_steps = serializers.IntegerField(required=False, min_value=1, max_value=10)
+
+
+class AgentAnalysisEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AgentAnalysisEvent
+        fields = [
+            "id",
+            "run",
+            "sequence",
+            "event_type",
+            "payload",
+            "created_at",
+        ]
+
+
+class AgentAnalysisRunSerializer(serializers.ModelSerializer):
+    event_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AgentAnalysisRun
+        fields = [
+            "id",
+            "agent",
+            "requested_by",
+            "status",
+            "query",
+            "model",
+            "max_steps",
+            "steps_executed",
+            "usage",
+            "result_text",
+            "error_message",
+            "metadata",
+            "started_at",
+            "completed_at",
+            "event_count",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_event_count(self, obj: AgentAnalysisRun) -> int:
+        return cast(int, obj.events.count())
+
+
+class AgentAnalysisRunDetailSerializer(AgentAnalysisRunSerializer):
+    events = AgentAnalysisEventSerializer(many=True, read_only=True)
+
+    class Meta(AgentAnalysisRunSerializer.Meta):
+        fields = AgentAnalysisRunSerializer.Meta.fields + ["events"]

@@ -72,3 +72,79 @@ class Agent(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.owner_id}:{self.slug}"
+
+
+class AnalysisRunStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    RUNNING = "running", "Running"
+    COMPLETED = "completed", "Completed"
+    FAILED = "failed", "Failed"
+    CANCELED = "canceled", "Canceled"
+
+
+class AgentAnalysisRun(TimeStampedModel):
+    agent = models.ForeignKey(
+        Agent,
+        on_delete=models.CASCADE,
+        related_name="analysis_runs",
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agent_analysis_runs",
+    )
+
+    status = models.CharField(
+        max_length=16,
+        choices=AnalysisRunStatus.choices,
+        default=AnalysisRunStatus.PENDING,
+    )
+    query = models.TextField()
+    model = models.CharField(max_length=128, blank=True)
+    max_steps = models.PositiveSmallIntegerField(default=6)
+    steps_executed = models.PositiveIntegerField(default=0)
+    usage = models.JSONField(default=dict, blank=True)
+
+    result_text = models.TextField(blank=True)
+    error_message = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=("agent", "created_at")),
+            models.Index(fields=("status", "created_at")),
+        ]
+
+    def __str__(self) -> str:
+        return f"AnalysisRun<{self.id}:{self.status}>"
+
+
+class AgentAnalysisEvent(TimeStampedModel):
+    run = models.ForeignKey(
+        AgentAnalysisRun,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    sequence = models.PositiveIntegerField()
+    event_type = models.CharField(max_length=64)
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("run", "sequence"),
+                name="unique_analysis_event_sequence_per_run",
+            )
+        ]
+        indexes = [
+            models.Index(fields=("run", "sequence")),
+            models.Index(fields=("event_type", "created_at")),
+        ]
+
+    def __str__(self) -> str:
+        return f"AnalysisEvent<{self.run_id}:{self.sequence}:{self.event_type}>"

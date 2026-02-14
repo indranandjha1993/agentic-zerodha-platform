@@ -5,7 +5,14 @@ from django.contrib.auth import get_user_model
 from django.test import override_settings
 from rest_framework.test import APIClient
 
-from apps.agents.models import Agent, AgentStatus, ApprovalMode, ExecutionMode
+from apps.agents.models import (
+    Agent,
+    AgentAnalysisRun,
+    AgentStatus,
+    AnalysisRunStatus,
+    ApprovalMode,
+    ExecutionMode,
+)
 from apps.credentials.services.manager import LlmCredentialService
 
 User = get_user_model()
@@ -63,6 +70,10 @@ def test_agent_analyze_endpoint_returns_analysis_payload() -> None:
     payload = response.json()
     assert payload["status"] == "ok"
     assert payload["analysis"] == "Mocked analysis"
+    assert "run_id" in payload
+    run = AgentAnalysisRun.objects.get(id=payload["run_id"])
+    assert run.status == AnalysisRunStatus.COMPLETED
+    assert run.result_text == "Mocked analysis"
     mocked_analyze.assert_called_once()
 
 
@@ -95,3 +106,4 @@ def test_agent_analyze_endpoint_requires_openrouter_credential() -> None:
 
     assert response.status_code == 400
     assert "No active OpenRouter credential" in response.json()["detail"]
+    assert "run_id" in response.json()

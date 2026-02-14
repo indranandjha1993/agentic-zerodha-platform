@@ -55,6 +55,10 @@ docker compose up --build
 - `GET /health/`
 - `GET/POST /api/v1/agents/`
 - `POST /api/v1/agents/{id}/analyze/`
+- `GET /api/v1/agents/{id}/analysis-runs/`
+- `GET /api/v1/agents/{id}/analysis-runs/{run_id}/`
+- `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/`
+- `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/stream/`
 - `GET /api/v1/approval-requests/`
 - `GET /api/v1/approval-requests/queue/`
 - `POST /api/v1/approval-requests/{id}/decide/`
