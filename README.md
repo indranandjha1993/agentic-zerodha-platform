@@ -54,6 +54,7 @@ docker compose up --build
 
 - `GET /health/`
 - `GET/POST /api/v1/agents/`
+- `GET/POST /api/v1/analysis-webhook-endpoints/`
 - `POST /api/v1/agents/{id}/analyze/`
 - `GET /api/v1/agents/{id}/analysis-runs/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/`
@@ -61,6 +62,7 @@ docker compose up --build
 - `POST /api/v1/agents/{id}/analysis-runs/{run_id}/cancel/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/`
 - `GET /api/v1/agents/{id}/analysis-runs/{run_id}/events/stream/`
+- `GET /api/v1/agents/analysis-events/stream/`
 - `GET /api/v1/approval-requests/`
 - `GET /api/v1/approval-requests/queue/`
 - `POST /api/v1/approval-requests/{id}/decide/`
@@ -103,6 +105,17 @@ Async behavior:
 - pass `"async_mode": false` in request body to execute synchronously
 - poll compact run status using `/analysis-runs/{run_id}/status/`
 - cancel pending/running runs with `/analysis-runs/{run_id}/cancel/`
+- subscribe to user-wide final run SSE updates with `/agents/analysis-events/stream/`
+
+Webhook notifications for final run states:
+- configure destination endpoints in `/api/v1/analysis-webhook-endpoints/`
+- supported events:
+  - `analysis_run.completed`
+  - `analysis_run.failed`
+  - `analysis_run.canceled`
+- each delivery includes:
+  - `X-Agentic-Event`, `X-Agentic-Run-Id`, `X-Agentic-Delivery-Id`
+  - optional `X-Agentic-Signature: sha256=<hex>` when signing secret is configured
 
 Run history query options:
 - `status=completed|failed|running|pending|canceled`

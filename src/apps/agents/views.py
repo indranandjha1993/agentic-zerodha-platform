@@ -16,13 +16,20 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from apps.agents.models import Agent, AgentAnalysisEvent, AgentAnalysisRun, AnalysisRunStatus
+from apps.agents.models import (
+    Agent,
+    AgentAnalysisEvent,
+    AgentAnalysisRun,
+    AgentAnalysisWebhookEndpoint,
+    AnalysisRunStatus,
+)
 from apps.agents.serializers import (
     AgentAnalysisEventSerializer,
     AgentAnalysisRequestSerializer,
     AgentAnalysisRunDetailSerializer,
     AgentAnalysisRunSerializer,
     AgentAnalysisRunStatusSerializer,
+    AgentAnalysisWebhookEndpointSerializer,
     AgentSerializer,
 )
 from apps.agents.services.analysis_run_service import AgentAnalysisRunService
@@ -32,6 +39,16 @@ from apps.agents.services.openrouter_market_analyst import (
 )
 from apps.agents.tasks import execute_agent_analysis_run_task
 from apps.audit.models import AuditEvent, AuditLevel
+
+
+class AgentAnalysisWebhookEndpointViewSet(ModelViewSet):
+    serializer_class = AgentAnalysisWebhookEndpointSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self) -> QuerySet[AgentAnalysisWebhookEndpoint]:
+        return AgentAnalysisWebhookEndpoint.objects.filter(owner=self.request.user).order_by(
+            "-updated_at"
+        )
 
 
 class AgentViewSet(ModelViewSet):
@@ -57,6 +74,90 @@ class AgentViewSet(ModelViewSet):
         if instance.owner_id != self.request.user.id and not self.request.user.is_staff:
             raise PermissionDenied("Only the owner can delete this agent.")
         instance.delete()
+
+    @action(detail=False, methods=["get"], url_path="analysis-events/stream")
+    def stream_user_analysis_events(
+        self,
+        request: Request,
+    ) -> StreamingHttpResponse:
+        timeout_param = request.query_params.get("timeout_seconds", "30")
+        timeout_seconds = int(timeout_param) if timeout_param.isdigit() else 30
+        timeout_seconds = max(5, min(timeout_seconds, 120))
+
+        poll_param = request.query_params.get("poll_interval", "1.0")
+        try:
+            poll_interval = float(poll_param)
+        except ValueError:
+            poll_interval = 1.0
+        poll_interval = max(0.2, min(poll_interval, 5.0))
+
+        since_event_param = request.query_params.get(
+            "since_event_id",
+            request.headers.get("Last-Event-ID", "0"),
+        )
+        since_event_id = int(since_event_param) if str(since_event_param).isdigit() else 0
+        final_event_types = {"run_completed", "run_failed", "run_canceled"}
+
+        def event_stream() -> Iterator[str]:
+            last_event_id = since_event_id
+            deadline = time.monotonic() + timeout_seconds
+
+            while time.monotonic() < deadline:
+                events = list(
+                    AgentAnalysisEvent.objects.select_related("run", "run__agent")
+                    .filter(
+                        id__gt=last_event_id,
+                        event_type__in=final_event_types,
+                    )
+                    .filter(
+                        Q(run__agent__owner=request.user) | Q(run__agent__approvers=request.user)
+                    )
+                    .distinct()
+                    .order_by("id")
+                )
+                if events:
+                    for event in events:
+                        payload = {
+                            "event_id": event.id,
+                            "event_type": event.event_type,
+                            "created_at": event.created_at.isoformat(),
+                            "run": {
+                                "id": event.run_id,
+                                "status": event.run.status,
+                                "completed_at": (
+                                    event.run.completed_at.isoformat()
+                                    if event.run.completed_at is not None
+                                    else None
+                                ),
+                                "error_message": event.run.error_message,
+                            },
+                            "agent": {
+                                "id": event.run.agent_id,
+                                "name": event.run.agent.name,
+                                "slug": event.run.agent.slug,
+                            },
+                        }
+                        serialized = json.dumps(payload, ensure_ascii=True)
+                        yield (
+                            f"id: {event.id}\n"
+                            "event: analysis_run_finalized\n"
+                            f"data: {serialized}\n\n"
+                        )
+                        last_event_id = event.id
+                else:
+                    yield "event: heartbeat\ndata: {}\n\n"
+
+                time.sleep(poll_interval)
+
+            yield "event: timeout\ndata: {}\n\n"
+
+        response = StreamingHttpResponse(
+            streaming_content=event_stream(),
+            content_type="text/event-stream",
+        )
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response
 
     @action(detail=True, methods=["post"], url_path="analyze")
     def analyze(
@@ -287,6 +388,12 @@ class AgentViewSet(ModelViewSet):
             event_type="cancel_requested",
             payload={"actor_id": request.user.id},
         )
+        run_service.append_event_once(
+            run=run,
+            event_type="run_canceled",
+            payload={"reason": "Canceled by user."},
+        )
+        run_service.enqueue_final_notifications(run)
         payload = run_service.status_payload(run)
         serializer = AgentAnalysisRunStatusSerializer(payload)
         return Response(serializer.data, status=status.HTTP_200_OK)

@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from apps.agents.models import Agent, AgentAnalysisEvent, AgentAnalysisRun
+from apps.agents.models import (
+    Agent,
+    AgentAnalysisEvent,
+    AgentAnalysisNotificationDelivery,
+    AgentAnalysisRun,
+    AgentAnalysisWebhookEndpoint,
+)
 
 
 @admin.register(Agent)
@@ -41,3 +47,17 @@ class AgentAnalysisEventAdmin(admin.ModelAdmin):
     list_display = ("id", "run", "sequence", "event_type", "created_at")
     list_filter = ("event_type",)
     search_fields = ("run__id", "event_type")
+
+
+@admin.register(AgentAnalysisWebhookEndpoint)
+class AgentAnalysisWebhookEndpointAdmin(admin.ModelAdmin):
+    list_display = ("id", "owner", "name", "callback_url", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "owner__username", "owner__email", "callback_url")
+
+
+@admin.register(AgentAnalysisNotificationDelivery)
+class AgentAnalysisNotificationDeliveryAdmin(admin.ModelAdmin):
+    list_display = ("id", "endpoint", "run", "event_type", "success", "status_code", "created_at")
+    list_filter = ("event_type", "success")
+    search_fields = ("run__id", "endpoint__name", "error_message")

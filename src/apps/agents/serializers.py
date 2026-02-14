@@ -2,7 +2,15 @@ from typing import Any, cast
 
 from rest_framework import serializers
 
-from apps.agents.models import Agent, AgentAnalysisEvent, AgentAnalysisRun
+from apps.agents.models import (
+    Agent,
+    AgentAnalysisEvent,
+    AgentAnalysisRun,
+    AgentAnalysisWebhookEndpoint,
+    AnalysisNotificationEventType,
+)
+from apps.agents.services.analysis_notifications import AnalysisWebhookEndpointService
+from apps.credentials.services.crypto import CredentialCryptoError
 
 
 class AgentSerializer(serializers.ModelSerializer):
@@ -143,3 +151,72 @@ class AgentAnalysisRunStatusSerializer(serializers.Serializer):
     latest_event_type = serializers.CharField(allow_blank=True)
     latest_event_at = serializers.DateTimeField(allow_null=True)
     error_message = serializers.CharField(allow_blank=True)
+
+
+class AgentAnalysisWebhookEndpointSerializer(serializers.ModelSerializer):
+    signing_secret = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    has_signing_secret = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AgentAnalysisWebhookEndpoint
+        fields = [
+            "id",
+            "owner",
+            "name",
+            "callback_url",
+            "signing_secret",
+            "has_signing_secret",
+            "is_active",
+            "event_types",
+            "headers",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ("owner", "has_signing_secret", "created_at", "updated_at")
+
+    def get_has_signing_secret(self, obj: AgentAnalysisWebhookEndpoint) -> bool:
+        return bool(obj.signing_secret_encrypted)
+
+    def validate_event_types(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            raise serializers.ValidationError("event_types must be a list of event names.")
+        allowed = set(AnalysisNotificationEventType.values)
+        normalized = [str(item) for item in value]
+        invalid = [item for item in normalized if item not in allowed]
+        if invalid:
+            raise serializers.ValidationError(
+                f"Unsupported event_types: {', '.join(sorted(set(invalid)))}."
+            )
+        return normalized
+
+    def validate_headers(self, value: Any) -> dict[str, str]:
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("headers must be an object of string pairs.")
+        normalized: dict[str, str] = {}
+        for raw_key, raw_value in value.items():
+            key = str(raw_key).strip()
+            if key == "":
+                raise serializers.ValidationError("Header keys cannot be blank.")
+            normalized[key] = str(raw_value)
+        return normalized
+
+    def create(self, validated_data: dict[str, Any]) -> AgentAnalysisWebhookEndpoint:
+        request = self.context["request"]
+        service = AnalysisWebhookEndpointService()
+        try:
+            endpoint = service.create_for_user(user=request.user, payload=validated_data)
+        except CredentialCryptoError as exc:
+            raise serializers.ValidationError({"detail": str(exc)}) from exc
+        return cast(AgentAnalysisWebhookEndpoint, endpoint)
+
+    def update(
+        self,
+        instance: AgentAnalysisWebhookEndpoint,
+        validated_data: dict[str, Any],
+    ) -> AgentAnalysisWebhookEndpoint:
+        service = AnalysisWebhookEndpointService()
+        try:
+            endpoint = service.update(instance, payload=validated_data)
+        except CredentialCryptoError as exc:
+            raise serializers.ValidationError({"detail": str(exc)}) from exc
+        return cast(AgentAnalysisWebhookEndpoint, endpoint)

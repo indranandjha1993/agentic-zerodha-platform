@@ -278,3 +278,83 @@ def test_cancel_analysis_run_endpoint_marks_run_canceled() -> None:
     run.refresh_from_db()
     assert run.status == AnalysisRunStatus.CANCELED
     assert run.events.filter(event_type="cancel_requested").exists()
+
+
+@pytest.mark.django_db
+def test_user_analysis_event_stream_only_emits_visible_final_events() -> None:
+    owner = User.objects.create_user(
+        username="global-stream-owner",
+        email="global-stream-owner@example.com",
+        password="test-pass",
+    )
+    outsider = User.objects.create_user(
+        username="global-stream-outsider",
+        email="global-stream-outsider@example.com",
+        password="test-pass",
+    )
+    visible_agent = Agent.objects.create(
+        owner=owner,
+        name="Visible Stream Agent",
+        slug="stream-visible-agent",
+        instruction="Visible stream.",
+        status=AgentStatus.ACTIVE,
+        execution_mode=ExecutionMode.PAPER,
+        approval_mode=ApprovalMode.ALWAYS,
+        is_auto_enabled=True,
+    )
+    hidden_agent = Agent.objects.create(
+        owner=outsider,
+        name="Hidden Stream Agent",
+        slug="stream-hidden-agent",
+        instruction="Hidden stream.",
+        status=AgentStatus.ACTIVE,
+        execution_mode=ExecutionMode.PAPER,
+        approval_mode=ApprovalMode.ALWAYS,
+        is_auto_enabled=True,
+    )
+    visible_run = AgentAnalysisRun.objects.create(
+        agent=visible_agent,
+        requested_by=owner,
+        status=AnalysisRunStatus.COMPLETED,
+        query="Analyze visible run.",
+        model="openai/gpt-4o-mini",
+        max_steps=3,
+        result_text="Visible complete",
+    )
+    hidden_run = AgentAnalysisRun.objects.create(
+        agent=hidden_agent,
+        requested_by=outsider,
+        status=AnalysisRunStatus.COMPLETED,
+        query="Analyze hidden run.",
+        model="openai/gpt-4o-mini",
+        max_steps=3,
+        result_text="Hidden complete",
+    )
+    AgentAnalysisEvent.objects.create(
+        run=visible_run,
+        sequence=1,
+        event_type="run_completed",
+        payload={"note": "visible"},
+    )
+    AgentAnalysisEvent.objects.create(
+        run=hidden_run,
+        sequence=1,
+        event_type="run_completed",
+        payload={"note": "hidden"},
+    )
+
+    client = APIClient()
+    client.force_authenticate(owner)
+    response = client.get("/api/v1/agents/analysis-events/stream/?timeout_seconds=5")
+    assert response.status_code == 200
+    assert response["Content-Type"].startswith("text/event-stream")
+
+    chunks: list[str] = []
+    for index, chunk in enumerate(response.streaming_content):
+        chunks.append(chunk.decode("utf-8"))
+        if "analysis_run_finalized" in chunks[-1] or index >= 3:
+            break
+    body = "".join(chunks)
+    assert "analysis_run_finalized" in body
+    assert f"\"id\": {visible_run.id}" in body
+    assert "stream-hidden-agent" not in body

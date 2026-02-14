@@ -1,3 +1,4 @@
+import logging
 from typing import Any, cast
 
 from django.db import transaction
@@ -11,6 +12,8 @@ from apps.agents.services.openrouter_market_analyst import (
     OpenRouterAgentError,
     OpenRouterMarketAnalyst,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AgentAnalysisRunService:
@@ -85,11 +88,12 @@ class AgentAnalysisRunService:
                 run.completed_at = timezone.now()
             run.error_message = run.error_message or "Canceled by user."
             run.save(update_fields=["status", "completed_at", "error_message", "updated_at"])
-            self.append_event(
+            self.append_event_once(
                 run=run,
                 event_type="run_canceled",
                 payload={"reason": "Canceled by user."},
             )
+            self.enqueue_final_notifications(run)
             return {
                 "status": "canceled",
                 "model": run.model,
@@ -115,6 +119,7 @@ class AgentAnalysisRunService:
                 event_type="run_failed",
                 payload={"error": str(exc)},
             )
+            self.enqueue_final_notifications(run)
             raise
         except Exception as exc:
             run.status = AnalysisRunStatus.FAILED
@@ -133,6 +138,7 @@ class AgentAnalysisRunService:
                 event_type="run_failed",
                 payload={"error": str(exc)},
             )
+            self.enqueue_final_notifications(run)
             raise OpenRouterAgentError(str(exc)) from exc
 
         run.refresh_from_db(fields=["status"])
@@ -140,11 +146,12 @@ class AgentAnalysisRunService:
             run.completed_at = run.completed_at or timezone.now()
             run.error_message = run.error_message or "Canceled by user."
             run.save(update_fields=["completed_at", "error_message", "updated_at"])
-            self.append_event(
+            self.append_event_once(
                 run=run,
                 event_type="run_canceled",
                 payload={"reason": "Canceled by user."},
             )
+            self.enqueue_final_notifications(run)
             return {
                 "status": "canceled",
                 "model": run.model,
@@ -177,6 +184,7 @@ class AgentAnalysisRunService:
                 "usage": run.usage,
             },
         )
+        self.enqueue_final_notifications(run)
         return result
 
     def append_event(
@@ -201,6 +209,38 @@ class AgentAnalysisRunService:
                 payload=payload,
             )
         return cast(AgentAnalysisEvent, event)
+
+    def append_event_once(
+        self,
+        *,
+        run: AgentAnalysisRun,
+        event_type: str,
+        payload: dict[str, Any],
+    ) -> AgentAnalysisEvent:
+        existing = run.events.filter(event_type=event_type).order_by("-sequence").first()
+        if existing is not None:
+            return cast(AgentAnalysisEvent, existing)
+        return self.append_event(run=run, event_type=event_type, payload=payload)
+
+    @staticmethod
+    def enqueue_final_notifications(run: AgentAnalysisRun) -> None:
+        if run.status not in {
+            AnalysisRunStatus.COMPLETED,
+            AnalysisRunStatus.FAILED,
+            AnalysisRunStatus.CANCELED,
+        }:
+            return
+
+        from apps.agents.tasks import dispatch_analysis_run_notifications_task
+
+        try:
+            dispatch_analysis_run_notifications_task.delay(run.id)
+        except Exception:
+            logger.warning(
+                "Unable to enqueue analysis run notifications.",
+                extra={"run_id": run.id, "run_status": run.status},
+                exc_info=True,
+            )
 
     @staticmethod
     def status_payload(run: AgentAnalysisRun) -> dict[str, Any]:

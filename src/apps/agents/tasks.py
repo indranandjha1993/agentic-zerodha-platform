@@ -3,6 +3,7 @@ from typing import Any
 from celery import shared_task
 
 from apps.agents.models import Agent, AgentAnalysisRun, AgentStatus, AnalysisRunStatus
+from apps.agents.services.analysis_notifications import AnalysisRunNotificationDispatchService
 from apps.agents.services.analysis_run_service import AgentAnalysisRunService
 from apps.agents.services.openrouter_market_analyst import (
     MissingLlmCredentialError,
@@ -75,3 +76,14 @@ def execute_agent_analysis_run_task(self: Any, run_id: int) -> dict[str, Any]:
         message="OpenRouter market analysis completed for async run.",
     )
     return {"status": "completed", "run_id": run.id}
+
+
+@shared_task(bind=True, max_retries=2)
+def dispatch_analysis_run_notifications_task(self: Any, run_id: int) -> dict[str, Any]:
+    run = AgentAnalysisRun.objects.select_related(
+        "agent",
+        "agent__owner",
+        "requested_by",
+    ).get(id=run_id)
+    dispatch_service = AnalysisRunNotificationDispatchService()
+    return dispatch_service.dispatch_for_run(run)
