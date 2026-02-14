@@ -1,0 +1,94 @@
+import uuid
+
+from django.conf import settings
+from django.db import models
+
+from apps.core.models import TimeStampedModel
+
+
+class ApprovalChannel(models.TextChoices):
+    DASHBOARD = "dashboard", "Dashboard"
+    ADMIN = "admin", "Admin"
+    TELEGRAM = "telegram", "Telegram"
+
+
+class ApprovalStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
+    EXPIRED = "expired", "Expired"
+    CANCELED = "canceled", "Canceled"
+
+
+class DecisionType(models.TextChoices):
+    APPROVE = "approve", "Approve"
+    REJECT = "reject", "Reject"
+
+
+class ApprovalRequest(TimeStampedModel):
+    idempotency_key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+
+    agent = models.ForeignKey(
+        "agents.Agent",
+        on_delete=models.CASCADE,
+        related_name="approval_requests",
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approval_requests_created",
+    )
+
+    channel = models.CharField(
+        max_length=16,
+        choices=ApprovalChannel.choices,
+        default=ApprovalChannel.DASHBOARD,
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=ApprovalStatus.choices,
+        default=ApprovalStatus.PENDING,
+    )
+
+    intent_payload = models.JSONField(default=dict, blank=True)
+    risk_snapshot = models.JSONField(default=dict, blank=True)
+
+    notes = models.TextField(blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approval_requests_decided",
+    )
+    decision_reason = models.TextField(blank=True)
+
+    def __str__(self) -> str:
+        return f"ApprovalRequest<{self.id}>:{self.status}"
+
+
+class ApprovalDecision(TimeStampedModel):
+    approval_request = models.ForeignKey(
+        ApprovalRequest,
+        on_delete=models.CASCADE,
+        related_name="decisions",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approval_decisions",
+    )
+    channel = models.CharField(max_length=16, choices=ApprovalChannel.choices)
+    decision = models.CharField(max_length=16, choices=DecisionType.choices)
+    reason = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    def __str__(self) -> str:
+        return f"ApprovalDecision<{self.approval_request_id}>:{self.decision}"

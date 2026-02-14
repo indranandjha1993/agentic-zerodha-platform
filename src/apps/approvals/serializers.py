@@ -1,0 +1,57 @@
+from rest_framework import serializers
+
+from apps.approvals.models import (
+    ApprovalChannel,
+    ApprovalDecision,
+    ApprovalRequest,
+    DecisionType,
+)
+
+
+class ApprovalDecisionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ApprovalDecision
+        fields = ["id", "decision", "channel", "reason", "actor", "created_at"]
+
+
+class ApprovalRequestSerializer(serializers.ModelSerializer):
+    decisions = ApprovalDecisionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ApprovalRequest
+        fields = [
+            "id",
+            "idempotency_key",
+            "agent",
+            "requested_by",
+            "channel",
+            "status",
+            "intent_payload",
+            "risk_snapshot",
+            "notes",
+            "expires_at",
+            "decided_at",
+            "decided_by",
+            "decision_reason",
+            "decisions",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class ApprovalDecisionInputSerializer(serializers.Serializer):
+    decision = serializers.ChoiceField(
+        choices=(
+            DecisionType.APPROVE,
+            DecisionType.REJECT,
+        )
+    )
+    reason = serializers.CharField(required=False, allow_blank=True)
+    channel = serializers.ChoiceField(
+        choices=(
+            ApprovalChannel.DASHBOARD,
+            ApprovalChannel.ADMIN,
+            ApprovalChannel.TELEGRAM,
+        ),
+        default=ApprovalChannel.DASHBOARD,
+    )
