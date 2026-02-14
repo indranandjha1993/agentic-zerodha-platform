@@ -7,6 +7,7 @@
 
 {% block content %}
   {% get_admin_dashboard_snapshot as snapshot %}
+  {% get_grouped_admin_apps app_list as grouped_apps %}
 
   <div
     class="ops-dashboard"
@@ -191,7 +192,17 @@
     <section class="ops-module-directory">
       <header>
         <h2>Admin Module Directory</h2>
-        <p>Direct access to every configured model surface.</p>
+        <p>Grouped control surfaces for faster access across related modules.</p>
+        <div class="ops-module-group-switch" data-module-group-switch>
+          <button type="button" class="is-active" data-group-filter="all" data-group-label="All Modules">
+            All
+          </button>
+          {% for group in grouped_apps %}
+            <button type="button" data-group-filter="{{ group.id }}" data-group-label="{{ group.title }}">
+              {{ group.title }} · {{ group.app_count }}
+            </button>
+          {% endfor %}
+        </div>
         <div class="ops-module-search">
           <label for="ops-module-search-input">Find module or model</label>
           <input
@@ -204,35 +215,46 @@
           <span data-module-search-meta>Showing all modules.</span>
         </div>
       </header>
-      <div class="ops-app-grid">
-        {% for app in app_list %}
-          <article class="ops-app-card" data-module-card>
-            <h3>
-              {% if app.app_url %}
-                <a href="{{ app.app_url }}">{{ app.name }}</a>
-              {% else %}
-                {{ app.name }}
-              {% endif %}
-            </h3>
-            <ul>
-              {% for model in app.models %}
-                <li data-model-row>
-                  {% if model.admin_url %}
-                    <a href="{{ model.admin_url }}">{{ model.name }}</a>
+      {% for group in grouped_apps %}
+        <section class="ops-module-group" data-module-group="{{ group.id }}">
+          <header>
+            <div>
+              <h3>{{ group.title }}</h3>
+              <p>{{ group.description }}</p>
+            </div>
+            <p class="ops-module-group__meta">{{ group.model_count }} models</p>
+          </header>
+          <div class="ops-app-grid">
+            {% for app in group.apps %}
+              <article class="ops-app-card" data-module-card data-module-group="{{ group.id }}">
+                <h3>
+                  {% if app.app_url %}
+                    <a href="{{ app.app_url }}">{{ app.name }}</a>
                   {% else %}
-                    {{ model.name }}
+                    {{ app.name }}
                   {% endif %}
-                  {% if model.add_url %}
-                    <a class="ops-app-card__add" href="{{ model.add_url }}">Add</a>
-                  {% endif %}
-                </li>
-              {% empty %}
-                <li class="is-empty">{% translate "No models available." %}</li>
-              {% endfor %}
-            </ul>
-          </article>
-        {% endfor %}
-      </div>
+                </h3>
+                <ul>
+                  {% for model in app.models %}
+                    <li data-model-row>
+                      {% if model.admin_url %}
+                        <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                      {% else %}
+                        {{ model.name }}
+                      {% endif %}
+                      {% if model.add_url %}
+                        <a class="ops-app-card__add" href="{{ model.add_url }}">Add</a>
+                      {% endif %}
+                    </li>
+                  {% empty %}
+                    <li class="is-empty">{% translate "No models available." %}</li>
+                  {% endfor %}
+                </ul>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
       <p class="ops-module-search-empty" data-module-search-empty hidden>
         No modules matched your search.
       </p>

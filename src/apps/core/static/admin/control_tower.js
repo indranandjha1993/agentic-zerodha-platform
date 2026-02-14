@@ -39,6 +39,8 @@
   const moduleSearchMeta = root.querySelector("[data-module-search-meta]");
   const moduleSearchEmpty = root.querySelector("[data-module-search-empty]");
   const moduleCards = Array.from(root.querySelectorAll("[data-module-card]"));
+  const moduleGroups = Array.from(root.querySelectorAll("[data-module-group]"));
+  const groupFilterButtons = Array.from(root.querySelectorAll("[data-group-filter]"));
 
   const escapeHtml = (value) =>
     String(value ?? "")
@@ -58,7 +60,13 @@
 
   const normalize = (value) => String(value || "").trim().toLowerCase();
 
-  const applyModuleSearch = (queryText) => {
+  let activeGroup = "all";
+  const activeGroupLabel = () => {
+    const button = groupFilterButtons.find((item) => item.dataset.groupFilter === activeGroup);
+    return button?.dataset.groupLabel || "All Modules";
+  };
+
+  const applyModuleFilters = (queryText) => {
     if (!moduleCards.length) {
       return;
     }
@@ -66,6 +74,8 @@
     let visibleCards = 0;
 
     moduleCards.forEach((card) => {
+      const cardGroup = card.dataset.moduleGroup || "other";
+      const groupMatches = activeGroup === "all" || cardGroup === activeGroup;
       const titleText = normalize(card.querySelector("h3")?.textContent);
       const modelRows = Array.from(card.querySelectorAll("[data-model-row]"));
       const titleMatches = query.length > 0 && titleText.includes(query);
@@ -79,20 +89,31 @@
         }
       });
 
-      const cardVisible = matchingRows > 0 || titleMatches || query.length === 0;
+      const cardVisible = groupMatches && (matchingRows > 0 || titleMatches || query.length === 0);
       card.hidden = !cardVisible;
       if (cardVisible) {
         visibleCards += 1;
       }
     });
 
+    moduleGroups.forEach((group) => {
+      const visibleCard = group.querySelector("[data-module-card]:not([hidden])");
+      group.hidden = visibleCard === null;
+    });
+
     if (moduleSearchMeta) {
-      if (query.length === 0) {
+      if (query.length === 0 && activeGroup === "all") {
         moduleSearchMeta.textContent = `Showing all modules (${visibleCards}).`;
-      } else {
+      } else if (query.length === 0) {
+        moduleSearchMeta.textContent = `${visibleCards} modules in ${activeGroupLabel()}.`;
+      } else if (activeGroup === "all") {
         moduleSearchMeta.textContent = `${visibleCards} module${
           visibleCards === 1 ? "" : "s"
         } matched "${query}".`;
+      } else {
+        moduleSearchMeta.textContent = `${visibleCards} module${
+          visibleCards === 1 ? "" : "s"
+        } matched "${query}" in ${activeGroupLabel()}.`;
       }
     }
 
@@ -103,11 +124,28 @@
 
   if (moduleSearchInput) {
     moduleSearchInput.addEventListener("input", (event) => {
-      applyModuleSearch(event.target.value);
+      if (!(event.target instanceof HTMLInputElement)) {
+        return;
+      }
+      applyModuleFilters(event.target.value);
     });
 
     registerSlashFocusShortcut(moduleSearchInput);
-    applyModuleSearch(moduleSearchInput.value);
+  }
+
+  if (groupFilterButtons.length) {
+    groupFilterButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activeGroup = button.dataset.groupFilter || "all";
+        groupFilterButtons.forEach((item) => item.classList.remove("is-active"));
+        button.classList.add("is-active");
+        applyModuleFilters(moduleSearchInput?.value || "");
+      });
+    });
+  }
+
+  if (moduleCards.length) {
+    applyModuleFilters(moduleSearchInput?.value || "");
   }
 
   const updateMetrics = (metrics) => {

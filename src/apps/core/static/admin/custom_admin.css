@@ -24,8 +24,14 @@ html[data-theme="light"] {
   --ops-critical-text: #9a1828;
   --ops-shadow-sm: 0 10px 26px rgba(8, 25, 48, 0.08);
   --ops-shadow-lg: 0 22px 44px rgba(8, 25, 48, 0.14);
-  --ops-font-body: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", sans-serif;
-  --ops-font-heading: "Sora", "Avenir Next", "Segoe UI", sans-serif;
+  --ops-font-body: "Source Sans 3", "Segoe UI", "Helvetica Neue", sans-serif;
+  --ops-font-heading: "Outfit", "Avenir Next", "Segoe UI", sans-serif;
+  --ops-type-50: 0.72rem;
+  --ops-type-100: 0.78rem;
+  --ops-type-200: 0.84rem;
+  --ops-type-300: 0.92rem;
+  --ops-type-400: 1rem;
+  --ops-type-500: 1.14rem;
 
   --primary: var(--ops-accent);
   --secondary: #0f88ab;
@@ -121,6 +127,11 @@ body {
 body {
   color: var(--ops-text);
   font-family: var(--ops-font-body);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.003em;
+  line-height: 1.45;
+  text-rendering: geometricprecision;
   position: relative;
 }
 
@@ -159,6 +170,17 @@ a:visited {
 
 a:hover {
   color: var(--ops-link-hover);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--ops-font-heading);
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 #header {
@@ -325,11 +347,17 @@ div.breadcrumbs {
 table thead th {
   background: var(--ops-surface-2);
   border-bottom: 1px solid var(--ops-border);
+  font-family: var(--ops-font-heading);
+  font-size: var(--ops-type-100);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 th,
 td {
   border-bottom-color: var(--ops-border);
+  font-size: var(--ops-type-300);
 }
 
 tr:nth-child(2n) {
@@ -350,7 +378,7 @@ select,
   border-radius: 10px;
   color: var(--ops-text);
   font-family: var(--ops-font-body);
-  font-size: 0.92rem;
+  font-size: var(--ops-type-300);
   padding: 7px 10px;
 }
 
@@ -486,14 +514,14 @@ a.button:hover {
 
 .ops-listing-search__hint {
   color: var(--ops-muted);
-  font-size: 0.78rem;
+  font-size: var(--ops-type-100);
   margin: 0;
 }
 
 .ops-listing-search__count {
   color: var(--ops-muted);
   font-family: var(--ops-font-heading);
-  font-size: 0.74rem;
+  font-size: var(--ops-type-50);
   letter-spacing: 0.03em;
   margin: 0;
   text-transform: uppercase;
@@ -623,9 +651,9 @@ a.button:hover {
 .ops-eyebrow {
   color: var(--ops-link);
   font-family: var(--ops-font-heading);
-  font-size: 0.75rem;
+  font-size: var(--ops-type-100);
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   margin: 0 0 8px;
   text-transform: uppercase;
 }
@@ -633,13 +661,17 @@ a.button:hover {
 .ops-hero h1 {
   color: var(--ops-title);
   font-family: var(--ops-font-heading);
-  font-size: clamp(1.5rem, 3vw, 2.35rem);
-  line-height: 1.04;
+  font-size: clamp(1.8rem, 3.2vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: 0.01em;
   margin: 0 0 8px;
 }
 
 .ops-subtitle {
   color: var(--ops-muted);
+  font-size: var(--ops-type-300);
+  line-height: 1.5;
   margin: 0;
   max-width: 70ch;
 }
@@ -724,7 +756,7 @@ a.button:hover {
 .ops-stat-card__title {
   color: var(--ops-muted);
   font-family: var(--ops-font-heading);
-  font-size: 0.7rem;
+  font-size: var(--ops-type-50);
   font-weight: 700;
   letter-spacing: 0.09em;
   margin: 0;
@@ -734,7 +766,8 @@ a.button:hover {
 .ops-stat-card__value {
   color: var(--ops-title);
   font-family: var(--ops-font-heading);
-  font-size: 1.8rem;
+  font-size: 1.92rem;
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
   line-height: 1;
   margin: 0;
@@ -742,7 +775,7 @@ a.button:hover {
 
 .ops-stat-card__desc {
   color: var(--ops-muted);
-  font-size: 0.82rem;
+  font-size: var(--ops-type-200);
   margin: 0;
 }
 
@@ -785,13 +818,13 @@ a.button:hover {
 .ops-module-card h2 {
   color: var(--ops-title);
   font-family: var(--ops-font-heading);
-  font-size: 1rem;
+  font-size: var(--ops-type-500);
   margin: 0;
 }
 
 .ops-module-card p {
   color: var(--ops-muted);
-  font-size: 0.83rem;
+  font-size: var(--ops-type-200);
   margin: 0;
 }
 
@@ -811,13 +844,14 @@ a.button:hover {
 
 .ops-module-card li span {
   color: var(--ops-muted);
-  font-size: 0.78rem;
+  font-size: var(--ops-type-100);
 }
 
 .ops-module-card li strong {
   color: var(--ops-title);
   font-family: var(--ops-font-heading);
-  font-size: 1.05rem;
+  font-size: var(--ops-type-500);
+  font-variant-numeric: tabular-nums;
 }
 
 .ops-grid-split {
@@ -844,7 +878,7 @@ a.button:hover {
 .ops-surface h2 {
   color: var(--ops-title);
   font-family: var(--ops-font-heading);
-  font-size: 1rem;
+  font-size: var(--ops-type-500);
   margin: 0;
 }
 
@@ -865,8 +899,8 @@ a.button:hover {
 
 .ops-queue-card h3 {
   color: var(--ops-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
+  font-size: var(--ops-type-50);
+  letter-spacing: 0.06em;
   margin: 0;
   text-transform: uppercase;
 }
@@ -875,12 +909,13 @@ a.button:hover {
   color: var(--ops-title);
   font-family: var(--ops-font-heading);
   font-size: 1.46rem;
+  font-variant-numeric: tabular-nums;
   margin: 0;
 }
 
 .ops-queue-card p {
   color: var(--ops-muted);
-  font-size: 0.76rem;
+  font-size: var(--ops-type-100);
   margin: 0;
 }
 
@@ -934,12 +969,12 @@ a.button:hover {
 
 .ops-alert-list li strong {
   font-family: var(--ops-font-heading);
-  font-size: 0.82rem;
+  font-size: var(--ops-type-200);
 }
 
 .ops-alert-list li span {
   color: var(--ops-muted);
-  font-size: 0.78rem;
+  font-size: var(--ops-type-100);
 }
 
 .ops-alert-list .tone-critical {
@@ -993,17 +1028,18 @@ a.button:hover {
 
 .ops-feed-list li strong {
   color: var(--ops-title);
-  font-size: 0.83rem;
+  font-size: var(--ops-type-200);
 }
 
 .ops-feed-list li span {
   color: var(--ops-muted);
-  font-size: 0.75rem;
+  font-size: var(--ops-type-100);
 }
 
 .ops-feed-list li time {
   color: var(--ops-muted);
-  font-size: 0.7rem;
+  font-size: var(--ops-type-50);
+  font-variant-numeric: tabular-nums;
 }
 
 .ops-feed-list li.tone-critical a {
@@ -1044,6 +1080,39 @@ a.button:hover {
   margin: 0;
 }
 
+.ops-module-group-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.ops-module-group-switch button {
+  background: var(--ops-surface-2);
+  border: 1px solid var(--ops-border);
+  border-radius: 999px;
+  color: var(--ops-muted);
+  cursor: pointer;
+  font-family: var(--ops-font-heading);
+  font-size: var(--ops-type-50);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  min-height: 30px;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.ops-module-group-switch button:hover {
+  border-color: var(--ops-border-strong);
+  color: var(--ops-title);
+}
+
+.ops-module-group-switch button.is-active {
+  background: color-mix(in srgb, var(--ops-accent) 14%, var(--ops-surface-2));
+  border-color: color-mix(in srgb, var(--ops-accent) 32%, var(--ops-border));
+  color: var(--ops-title);
+}
+
 .ops-module-search {
   align-items: center;
   display: grid;
@@ -1068,15 +1137,48 @@ a.button:hover {
 
 .ops-module-search span {
   color: var(--ops-muted);
-  font-size: 0.76rem;
+  font-size: var(--ops-type-100);
   justify-self: end;
   text-align: right;
 }
 
 .ops-module-search-empty {
   color: var(--ops-muted);
-  font-size: 0.82rem;
+  font-size: var(--ops-type-200);
   margin: 12px 0 0;
+}
+
+.ops-module-group {
+  margin-top: 16px;
+}
+
+.ops-module-group header {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ops-module-group h3 {
+  color: var(--ops-title);
+  font-family: var(--ops-font-heading);
+  font-size: var(--ops-type-500);
+  margin: 0;
+}
+
+.ops-module-group header p {
+  color: var(--ops-muted);
+  font-size: var(--ops-type-100);
+  margin-top: 2px;
+}
+
+.ops-module-group__meta {
+  font-family: var(--ops-font-heading);
+  font-size: var(--ops-type-50);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin: 0;
+  text-transform: uppercase;
 }
 
 .ops-app-grid {
@@ -1094,14 +1196,14 @@ a.button:hover {
 
 .ops-app-card h3 {
   font-family: var(--ops-font-heading);
-  font-size: 0.95rem;
+  font-size: var(--ops-type-400);
   margin: 0 0 8px;
 }
 
 .ops-app-card li {
   align-items: center;
   display: flex;
-  font-size: 0.8rem;
+  font-size: var(--ops-type-200);
   justify-content: space-between;
   margin-bottom: 7px;
 }
@@ -1233,6 +1335,10 @@ a.button:hover {
     width: 100%;
   }
 
+  .ops-module-group-switch {
+    width: 100%;
+  }
+
   .ops-module-search {
     grid-template-columns: 1fr;
   }
@@ -1240,5 +1346,11 @@ a.button:hover {
   .ops-module-search span {
     justify-self: start;
     text-align: left;
+  }
+
+  .ops-module-group header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
   }
 }
